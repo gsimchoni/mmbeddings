@@ -233,20 +233,20 @@ class VAEMmbed(BaseModel):
                                       batch_size=self.exp_in.batch, validation_split=0.1,
                                       verbose=self.exp_in.verbose)
     
-    def predict_B(self, X_train, Z_train, y_train):
-        B_hat_list = self.variational_encoder.predict([X_train] + [y_train], verbose=0)
-        B_hat_list_processed = self.extract_Bs_to_compare(Z_train, B_hat_list)
-        sig2bs_hat_list = [B_hat_list_processed[i].var(axis=0) for i in range(len(B_hat_list_processed))]
-        return B_hat_list_processed, sig2bs_hat_list
+    def predict_mmbeddings(self, X_train, Z_train, y_train):
+        mmbeddings_list = self.variational_encoder.predict([X_train] + [y_train], verbose=0)
+        mmbeddings_list_processed = self.extract_mmbeddings(Z_train, mmbeddings_list)
+        sig2bs_hat_list = [mmbeddings_list_processed[i].var(axis=0) for i in range(len(mmbeddings_list_processed))]
+        return mmbeddings_list_processed, sig2bs_hat_list
     
-    def extract_Bs_to_compare(self, Z_train, B_hat_list):
+    def extract_mmbeddings(self, Z_train, mmbeddings_list):
         B_df_list = []
         for i in range(self.n_RE_inputs):
-            B_df = pd.DataFrame(B_hat_list[i])
+            B_df = pd.DataFrame(mmbeddings_list[i])
             B_df['z'] = Z_train[i].values
-            B_df2 = B_df.groupby('z')[B_df.columns[:self.d]].mean()
-            B_df2 = B_df2.reindex(range(self.qs[i]), fill_value=0)
-            B_df_list.append(B_df2)
+            B_df_grouped = B_df.groupby('z')[B_df.columns[:self.d]].mean()
+            B_df_grouped = B_df_grouped.reindex(range(self.qs[i]), fill_value=0)
+            B_df_list.append(B_df_grouped)
         return B_df_list
     
     def predict(self, X_test, Z_test, B_hat_list):
