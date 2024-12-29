@@ -38,7 +38,7 @@ class DataSimulator:
         y = self.calculate_y(X, B_list, Z_idx_list, noise)
         df, x_cols = self.create_df(X, Z_idx_list, y)
         X_train, X_test, y_train, y_test = self.split_data(df)
-        return ExpData(X_train, X_test, y_train, y_test, x_cols)
+        return ExpData(X_train, X_test, y_train, y_test, x_cols, B_list)
 
     def sample_fe(self):
         """Sample fixed effects."""
@@ -91,7 +91,7 @@ class DataSimulator:
         input_features = np.hstack([X, embeddings_concat])  # N x (p + K * d)
 
         # Define a non-linear function on the input features
-        non_linear_term = np.sin(np.sum(input_features**2, axis=1, keepdims=True))
+        non_linear_term = non_linear_fn0(input_features)
 
         # Ensure noise is reshaped to (N, 1) for consistency
         noise = noise.reshape(-1, 1) if noise.ndim == 1 else noise
@@ -159,3 +159,37 @@ class ExperimentInput:
                         self.params['Z_embed_dim_pct'], self.n_sig2bs, self.params['verbose'], self.params['n_neurons'],
                         self.params['dropout'], self.params['activation'], self.params['RE_cols_prefix'],
                         self.params['re_sig2b_prior'], self.params['beta_vae'], self.params['log_params'])
+
+def non_linear_fn0(input_features):
+    # Periodic sine function of the sum of squares of input features
+    return np.sin(np.sum(input_features**2, axis=1, keepdims=True))
+
+def non_linear_fn1(input_features):
+    # Exponential weighted sum
+    w = np.random.uniform(0.5, 1.5, size=input_features.shape[1])
+    return np.exp(-np.sum((input_features * w)**2, axis=1, keepdims=True))
+
+def non_linear_fn2(input_features):
+    # Hyperbolic tangent of weighted interaction
+    pairwise_products = np.triu(np.dot(input_features[:, :, None], input_features[:, None, :]), k=1)
+    return np.tanh(pairwise_products.sum(axis=(1, 2), keepdims=True))
+
+def non_linear_fn3(input_features):
+    # ReLU followed by sine
+    relu = np.maximum(0, np.sum(input_features, axis=1, keepdims=True))
+    return np.sin(relu)
+
+def non_linear_fn4(input_features):
+    # Polynomial expansion with sigmoid
+    poly = np.sum(input_features**3 - input_features, axis=1, keepdims=True)
+    return 1 / (1 + np.exp(-poly))
+
+def non_linear_fn5(input_features):
+    # Gaussian RBF
+    c = np.random.uniform(-1, 1, size=input_features.shape[1])
+    return np.exp(-np.sum((input_features - c)**2, axis=1, keepdims=True))
+
+def non_linear_fn6(input_features):
+    # Periodic cosine interaction
+    w = np.random.uniform(0.5, 1.5, size=input_features.shape[1])
+    return np.cos(np.sum(input_features * w, axis=1, keepdims=True))

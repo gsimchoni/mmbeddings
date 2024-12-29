@@ -5,9 +5,9 @@ import scipy.sparse as sparse
 
 ExpResult = namedtuple('ExpResult', ['mse', 'sigmas', 'nll_tr', 'nll_te', 'n_epochs', 'time'])
 
-ExpData = namedtuple('ExpData', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols'])
+ExpData = namedtuple('ExpData', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols', 'B_true_list'])
 
-ExpInput = namedtuple('ExpInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols',
+ExpInput = namedtuple('ExpInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols', 'B_true_list',
                                    'N', 'test_size', 'pred_unknown', 'qs', 'd', 'sig2e',
                                    'sig2bs', 'k', 'batch', 'epochs', 'patience',
                                    'Z_embed_dim_pct', 'n_sig2bs', 'verbose',
