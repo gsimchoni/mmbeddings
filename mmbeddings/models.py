@@ -152,7 +152,7 @@ class VAEMmbed(BaseModel):
         X_input = Input(shape=(self.input_dim,))
         y_input = Input(shape=(1,))
         X_y_concat = Concatenate()([X_input] + [y_input])
-        z1 = self.add_layers_functional(X_y_concat, self.input_dim + 1)
+        z1 = self.add_layers_functional(X_y_concat, self.input_dim + 1, self.exp_in.n_neurons, self.exp_in.dropout, self.exp_in.activation)
         Z_inputs = []
         Z_mats = []
         for i in range(self.n_RE_inputs):
