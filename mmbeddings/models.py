@@ -53,7 +53,7 @@ class BaseModel:
             if len(n_neurons) > 1:
                 self.model.add(Dense(n_neurons[-1], activation=activation))
     
-    def add_layers_functional(self, X_input, input_dim):
+    def add_layers_functional(self, X_input, input_dim, n_neurons, dropout, activation):
         n_neurons = self.exp_in.n_neurons
         dropout = self.exp_in.dropout
         activation = self.exp_in.activation
@@ -110,15 +110,15 @@ class MLPEmbed(BaseModel):
         Z_inputs = []
         embeds = []
         qs_list = list(self.exp_in.qs)
-        for q in qs_list:
+        for i, q in enumerate(qs_list):
             Z_input = Input(shape=(1,))
-            embed = Embedding(q, embed_dim, input_length=1)(Z_input)
+            embed = Embedding(q, embed_dim, input_length=1, name='embed' + str(i))(Z_input)
             embed = Reshape(target_shape=(embed_dim,))(embed)
             Z_inputs.append(Z_input)
             embeds.append(embed)
         concat = Concatenate()([X_input] + embeds)
         concat_input_dim =  self.input_dim + embed_dim * len(qs_list)
-        out_hidden = self.add_layers_functional(concat, concat_input_dim)
+        out_hidden = self.add_layers_functional(concat, concat_input_dim, self.exp_in.n_neurons, self.exp_in.dropout, self.exp_in.activation)
         output = Dense(1)(out_hidden)
         self.model = Model(inputs=[X_input] + Z_inputs, outputs=output)
 
@@ -147,7 +147,7 @@ class VAEMmbed(BaseModel):
         
     def build(self):
         """
-        Build the MLP model with mmbeddings.
+        Build the VAE model with mmbeddings.
         """
         X_input = Input(shape=(self.input_dim,))
         y_input = Input(shape=(1,))
@@ -188,7 +188,7 @@ class VAEMmbed(BaseModel):
             ZB_list.append(ZB)
         decoder_input_dim = self.input_dim + self.d * self.n_RE_inputs
         features_embedding_concat = Concatenate()([X_input] + ZB_list)
-        out_hidden = self.add_layers_functional(features_embedding_concat, decoder_input_dim)
+        out_hidden = self.add_layers_functional(features_embedding_concat, decoder_input_dim, self.exp_in.n_neurons, self.exp_in.dropout, self.exp_in.activation)
         output = Dense(1)(out_hidden)
         self.variational_decoder = Model(
                 inputs=[X_input] + decoder_re_inputs_list + Z_inputs, outputs=[output])

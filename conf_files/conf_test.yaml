@@ -37,7 +37,7 @@ test_size: 0.2
 pred_unknown_clusters: False
 RE_cols_prefix: 'z'
 re_sig2b_prior: 1.0
-beta_vae: 0.01
+beta_vae: 0.001
 exp_types:
   - 'ignore'
   - 'ohe'

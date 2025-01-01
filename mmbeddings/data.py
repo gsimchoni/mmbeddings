@@ -193,3 +193,16 @@ def non_linear_fn6(input_features):
     # Periodic cosine interaction
     w = np.random.uniform(0.5, 1.5, size=input_features.shape[1])
     return np.cos(np.sum(input_features * w, axis=1, keepdims=True))
+
+def non_linear_fn7(input_features):
+    W = np.random.uniform(-1, 1, size=(input_features.shape[1], input_features.shape[1]))  # Weight matrix
+    b = np.random.uniform(-0.5, 0.5, size=(input_features.shape[1],))  # Bias vector
+    output = np.dot(input_features, W) + b
+    return np.maximum(0, output[:, 0]).reshape(-1, 1)  # ReLU activation on the first neuron
+
+def non_linear_fn8(X, embeddings_concat, d):
+    betas = np.ones(d)
+    Bbeta = embeddings_concat @ betas
+    fB = Bbeta * np.cos(Bbeta) + 2 * embeddings_concat[:, 0] * embeddings_concat[:, 1]
+    non_linear_term = non_linear_fn0(X) + fB.reshape(-1, 1)
+    return non_linear_term
