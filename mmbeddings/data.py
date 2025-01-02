@@ -205,3 +205,15 @@ def non_linear_fn8(X, embeddings_concat, d):
     fB = Bbeta * np.cos(Bbeta) + 2 * embeddings_concat[:, 0] * embeddings_concat[:, 1]
     non_linear_term = non_linear_fn0(X) + fB.reshape(-1, 1)
     return non_linear_term
+
+def non_linear_fn9(input_features):
+    # Lindstrom and Bates (1990) Orange trees growth model
+    x = input_features[:, 0]
+    b1 = input_features[:, 1]
+    b2 = input_features[:, 2]
+    b3 = input_features[:, 3]
+    beta = np.random.uniform(0.5, 1.5, size=3)
+    beta_1, beta_2, beta_3 = beta
+    non_linear_term = ((beta_1 + b1) * x) / (beta_2 + b2 + x) + (beta_3 + b3) * x
+    non_linear_term = np.clip(non_linear_term, -1, 10)
+    return non_linear_term
