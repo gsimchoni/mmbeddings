@@ -25,7 +25,6 @@ class DataSimulator:
         self.pred_unknown_clusters = pred_unknown_clusters
         self.params = params
         self.p = params.get('n_fixed_effects', 10)
-        self.sig2bs_means = params.get('sig2bs_means', [1.0] * len(qs))
         self.sig2bs_identical = params.get('sig2bs_identical', False)
         self.d = params.get('d', 10)
         self.n_per_cat = params.get('n_per_cat', 30)
@@ -50,7 +49,7 @@ class DataSimulator:
         Z_idx_list = []
         B_list = []
         for k, q in enumerate(self.qs):
-            sig2bs_mean = self.sig2bs_means[k]
+            sig2bs_mean = self.sig2bs[k]
             if sig2bs_mean < 1:
                 fs_factor = sig2bs_mean
             else:
