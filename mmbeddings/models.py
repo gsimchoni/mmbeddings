@@ -54,9 +54,6 @@ class BaseModel:
                 self.model.add(Dense(n_neurons[-1], activation=activation))
     
     def add_layers_functional(self, X_input, input_dim, n_neurons, dropout, activation):
-        n_neurons = self.exp_in.n_neurons
-        dropout = self.exp_in.dropout
-        activation = self.exp_in.activation
         if len(n_neurons) > 0:
             x = Dense(n_neurons[0], input_dim=input_dim, activation=activation)(X_input)
             if dropout is not None and len(dropout) > 0:
