@@ -1,0 +1,43 @@
+N_list:
+  - 10000
+sig2e_list:
+  - 0.01
+sig2b_list:
+  -
+    - 1.0
+q_list:
+  -
+    - 100
+d: 3
+n_iter: 5
+n_per_cat: 3
+fixed_intercept: 1
+n_fixed_effects: 1
+spatial_embed_neurons:
+sig2b_spatial_list: []
+q_spatial_list: []
+n_neurons:
+  - 1000
+  - 500
+  - 250
+  - 120
+dropout:
+  - 0.25
+  - 0.25
+  - 0.25
+activation: 'relu'
+X_non_linear: True
+Z_embed_dim_pct: 10
+batch: 100
+epochs: 200
+patience:
+verbose: True
+log_params: False
+test_size: 0.2
+pred_unknown_clusters: False
+RE_cols_prefix: 'z'
+re_sig2b_prior: 1.0
+beta_vae: 0.01
+exp_types:
+  - 'embeddings'
+  - 'mmbeddings'

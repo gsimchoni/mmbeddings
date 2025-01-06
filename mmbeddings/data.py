@@ -43,6 +43,11 @@ class DataSimulator:
         """Sample fixed effects."""
         X = np.random.uniform(-1, 1, self.N * self.p).reshape((self.N, self.p))
         return X
+    
+    def sample_fe_growth_model(self):
+        """Sample fixed effects for growth model."""
+        X = np.random.uniform(0, 15, self.N * self.p).reshape((self.N, self.p))
+        return X
 
     def sample_re(self):
         """Sample random effects embeddings"""
@@ -59,6 +64,8 @@ class DataSimulator:
             else:
                 sig2bs = (np.random.poisson(sig2bs_mean, self.d) + 1) * fs_factor
             D = np.diag(sig2bs)
+            # D[0,1] = D[1,0] = 0.5 * np.sqrt(sig2bs[0] * sig2bs[1])
+            # D[1,2] = D[2,1] = 0.5 * np.sqrt(sig2bs[1] * sig2bs[2])
             B = np.random.multivariate_normal(np.zeros(self.d), D, q)
             B_list.append(B)
             fs = np.random.poisson(self.n_per_cat, q) + 1
@@ -216,4 +223,16 @@ def non_linear_fn9(input_features):
     beta_1, beta_2, beta_3 = beta
     non_linear_term = ((beta_1 + b1) * x) / (beta_2 + b2 + x) + (beta_3 + b3) * x
     non_linear_term = np.clip(non_linear_term, -1, 10)
+    return non_linear_term
+
+def non_linear_fn10(input_features):
+    # Pinheiro and Bates (2000) Orange trees / Soybean growth model
+    x = input_features[:, 0]
+    b1 = input_features[:, 1]
+    b2 = input_features[:, 2]
+    b3 = input_features[:, 3]
+    # beta = [3.5, 3.5, 0.5]
+    beta = [3.5, 3.5, 3.5]
+    beta_1, beta_2, beta_3 = beta
+    non_linear_term = (beta_1 + b1) / (1 + np.exp(-(x - (beta_2 + b2)) / (beta_3 + b3)))
     return non_linear_term
