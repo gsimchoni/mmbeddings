@@ -1,7 +1,7 @@
 N_list:
   - 10000
 sig2e_list:
-  - 0.01
+  - 0.05
 sig2b_list:
   -
     - 1.0
@@ -17,10 +17,8 @@ spatial_embed_neurons:
 sig2b_spatial_list: []
 q_spatial_list: []
 n_neurons:
-  - 1000
-  - 500
-  - 250
-  - 120
+  - 10
+  - 5
 dropout:
   - 0.25
   - 0.25

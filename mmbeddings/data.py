@@ -46,7 +46,7 @@ class DataSimulator:
     
     def sample_fe_growth_model(self):
         """Sample fixed effects for growth model."""
-        X = np.random.uniform(0, 15, self.N * self.p).reshape((self.N, self.p))
+        X = np.random.uniform(0, 10, self.N * self.p).reshape((self.N, self.p))
         return X
 
     def sample_re(self):
@@ -63,6 +63,7 @@ class DataSimulator:
                 sig2bs = np.repeat(sig2bs_mean, self.d)
             else:
                 sig2bs = (np.random.poisson(sig2bs_mean, self.d) + 1) * fs_factor
+            # sig2bs = [1.0, 1.0, 0.04]
             D = np.diag(sig2bs)
             # D[0,1] = D[1,0] = 0.5 * np.sqrt(sig2bs[0] * sig2bs[1])
             # D[1,2] = D[2,1] = 0.5 * np.sqrt(sig2bs[1] * sig2bs[2])
@@ -235,4 +236,5 @@ def non_linear_fn10(input_features):
     beta = [3.5, 3.5, 3.5]
     beta_1, beta_2, beta_3 = beta
     non_linear_term = (beta_1 + b1) / (1 + np.exp(-(x - (beta_2 + b2)) / (beta_3 + b3)))
+    non_linear_term = non_linear_term.reshape(-1, 1)
     return non_linear_term
