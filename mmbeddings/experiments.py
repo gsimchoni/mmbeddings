@@ -31,11 +31,11 @@ class Experiment:
         input_dim = self.get_input_dimension(X_train)
         model = self.model_class(self.exp_in, input_dim)
         model.build()
-        model.fit(X_train, self.y_train)
+        history = model.fit(X_train, self.y_train)
         y_pred = model.predict(X_test)
         end = time.time()
         runtime = end - start
-        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred)
+        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, history)
         self.exp_res = ExpResult(mse, sigmas, nll_tr, nll_te, n_epochs, runtime)
 
     def summarize(self):
@@ -113,15 +113,15 @@ class Mmbeddings(Experiment):
         X_train, Z_train, X_test, Z_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
         model = VAEMmbed(self.exp_in, input_dim)
-        model.build()
-        model.fit(X_train, Z_train, self.y_train)
+        model.compile(optimizer='adam')
+        history = model.fit_model(X_train, Z_train, self.y_train)
         mmbeddings_list, sig2bs_hat_list = model.predict_mmbeddings(X_train, Z_train, self.y_train)
         y_pred = model.predict(X_test, Z_test, mmbeddings_list)
-        losses_tr = model.evaluate(X_train, Z_train, self.y_train)
-        losses_te = model.evaluate(X_test, Z_test, self.y_test)
+        losses_tr = model.evaluate_model(X_train, Z_train, self.y_train)
+        losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
         end = time.time()
         runtime = end - start
-        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te)
+        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
         self.exp_res = ExpResult(mse, sigmas, nll_tr, nll_te, n_epochs, runtime)
 
     def prepare_input_data(self):
