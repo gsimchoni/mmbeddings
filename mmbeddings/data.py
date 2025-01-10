@@ -232,8 +232,7 @@ def non_linear_fn10(input_features):
     b1 = input_features[:, 1]
     b2 = input_features[:, 2]
     b3 = input_features[:, 3]
-    # beta = [3.5, 3.5, 0.5]
-    beta = [3.5, 3.5, 3.5]
+    beta = [5.0, 5.0, 1.0]
     beta_1, beta_2, beta_3 = beta
     non_linear_term = (beta_1 + b1) / (1 + np.exp(-(x - (beta_2 + b2)) / (beta_3 + b3)))
     non_linear_term = non_linear_term.reshape(-1, 1)
