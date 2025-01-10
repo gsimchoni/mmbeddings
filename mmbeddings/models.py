@@ -349,9 +349,9 @@ class DecoderGrowthModel(Layer):
         self.qs = self.exp_in.qs
         self.n_RE_inputs = len(self.exp_in.qs)
         self.concat = Concatenate()
-        self.beta_1 = tf.Variable(initial_value=3.5, dtype=tf.float32, trainable=True, name="beta_1")
-        self.beta_2 = tf.Variable(initial_value=3.5, dtype=tf.float32, trainable=True, name="beta_2")
-        self.beta_3 = tf.Variable(initial_value=10.0, dtype=tf.float32, trainable=True, name="beta_3")
+        self.beta_1 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_1")
+        self.beta_2 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_2")
+        self.beta_3 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_3")
 
     def call(self, X_input, Z_inputs, mmbeddings_list):
         Z_mats = []
@@ -371,8 +371,8 @@ class DecoderGrowthModel(Layer):
             ZB_list.append(ZB)
         Z_0, Z_1, Z_2 = ZB_list[0][:, 0:1], ZB_list[0][:, 1:2], ZB_list[0][:, 2:3]
         numerator = self.beta_1 + Z_0
-        denominator = 1 + tf.math.exp(-(X_input - (self.beta_2 + Z_1)) / (self.beta_3 + Z_2))
-        output = numerator / denominator
+        denominator = 1 + tf.math.exp(-(X_input - (self.beta_2 + Z_1)) / (self.beta_3))
+        output = tf.math.divide_no_nan(numerator, denominator)
         return output, Z_mats
     
     def predict_with_custom_B(self, X_input, B_input):
@@ -380,6 +380,6 @@ class DecoderGrowthModel(Layer):
         ZB = tf.convert_to_tensor(B_input[0], dtype=tf.float32)
         Z_0, Z_1, Z_2 = ZB[:, 0:1], ZB[:, 1:2], ZB[:, 2:3]
         numerator = self.beta_1 + Z_0
-        denominator = 1 + tf.math.exp(-(X_input - (self.beta_2 + Z_1)) / (self.beta_3 + Z_2))
-        output = numerator / denominator
+        denominator = 1 + tf.math.exp(-(X_input - (self.beta_2 + Z_1)) / (self.beta_3))
+        output = tf.math.divide_no_nan(numerator, denominator)
         return output.numpy()
