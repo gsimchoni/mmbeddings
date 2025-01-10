@@ -200,11 +200,6 @@ class Decoder(Layer):
         self.nn = build_coder(input_dim, self.n_neurons, self.dropout, self.exp_in.activation)
         self.concat = Concatenate()
         self.dense_output = Dense(1)
-        
-        self.dropout_layers = []
-        if self.dropout is not None:
-            for drop in self.dropout:
-                self.dropout_layers.append(Dropout(drop))
 
     def call(self, X_input, Z_inputs, mmbeddings_list):
         Z_mats = []
@@ -236,7 +231,7 @@ class Decoder(Layer):
 
 
 class VAEMmbed(Model):
-    def __init__(self, exp_in, input_dim):
+    def __init__(self, exp_in, input_dim, growth_model=False):
         """
         MLP-based VAE model for mmbeddings.
         """
@@ -244,11 +239,15 @@ class VAEMmbed(Model):
         self.exp_in = exp_in
         self.input_dim = input_dim
         self.encoder = Encoder(exp_in, input_dim)
+        if growth_model:
+            decoder_class = DecoderGrowthModel
+        else:
+            decoder_class = Decoder
         self.d = self.exp_in.d
         self.qs = self.exp_in.qs
         self.n_RE_inputs = len(self.exp_in.qs)
         decoder_input_dim = self.input_dim + self.d * self.n_RE_inputs
-        self.decoder = Decoder(exp_in, decoder_input_dim)
+        self.decoder = decoder_class(exp_in, decoder_input_dim)
         self.re_log_sig2b_prior = tf.constant(np.log(self.exp_in.re_sig2b_prior, dtype=np.float32))
         self.beta = self.exp_in.beta_vae
         self.callbacks = [EarlyStopping(
@@ -339,3 +338,48 @@ class VAEMmbed(Model):
     def evaluate_model(self, X, Z, y):
         total_loss, squared_loss, re_kl_loss = self.evaluate([X] + [y] + Z, verbose=self.exp_in.verbose)
         return total_loss, squared_loss, re_kl_loss
+
+class DecoderGrowthModel(Layer):
+    """"""
+
+    def __init__(self, exp_in, input_dim, name="decoder", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.exp_in = exp_in
+        self.input_dim = input_dim
+        self.qs = self.exp_in.qs
+        self.n_RE_inputs = len(self.exp_in.qs)
+        self.concat = Concatenate()
+        self.beta_1 = tf.Variable(initial_value=3.5, dtype=tf.float32, trainable=True, name="beta_1")
+        self.beta_2 = tf.Variable(initial_value=3.5, dtype=tf.float32, trainable=True, name="beta_2")
+        self.beta_3 = tf.Variable(initial_value=10.0, dtype=tf.float32, trainable=True, name="beta_3")
+
+    def call(self, X_input, Z_inputs, mmbeddings_list):
+        Z_mats = []
+        for i in range(self.n_RE_inputs):
+            Z_input = Z_inputs[i]
+            if version.parse(tf.__version__) >= version.parse('2.8'):
+                Z = CategoryEncoding(num_tokens=self.qs[i], output_mode='one_hot')(Z_input)
+            else:
+                Z = CategoryEncoding(max_tokens=self.qs[i], output_mode='binary')(Z_input)
+            Z_mats.append(Z)
+        ZB_list = []
+        for i in range(self.n_RE_inputs):
+            Z = Z_mats[i]
+            decoder_re_inputs = mmbeddings_list[i]
+            B = tf.math.divide_no_nan(K.dot(K.transpose(Z), decoder_re_inputs), K.reshape(K.sum(Z, axis=0), (self.qs[i], 1)))
+            ZB = K.dot(Z, B)
+            ZB_list.append(ZB)
+        Z_0, Z_1, Z_2 = ZB_list[0][:, 0:1], ZB_list[0][:, 1:2], ZB_list[0][:, 2:3]
+        numerator = self.beta_1 + Z_0
+        denominator = 1 + tf.math.exp(-(X_input - (self.beta_2 + Z_1)) / (self.beta_3 + Z_2))
+        output = numerator / denominator
+        return output, Z_mats
+    
+    def predict_with_custom_B(self, X_input, B_input):
+        X_input = tf.convert_to_tensor(X_input, dtype=tf.float32)
+        ZB = tf.convert_to_tensor(B_input[0], dtype=tf.float32)
+        Z_0, Z_1, Z_2 = ZB[:, 0:1], ZB[:, 1:2], ZB[:, 2:3]
+        numerator = self.beta_1 + Z_0
+        denominator = 1 + tf.math.exp(-(X_input - (self.beta_2 + Z_1)) / (self.beta_3 + Z_2))
+        output = numerator / denominator
+        return output.numpy()
