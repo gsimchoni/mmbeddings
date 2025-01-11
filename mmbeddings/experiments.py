@@ -1,7 +1,7 @@
 import time
 import numpy as np
 import pandas as pd
-from mmbeddings.models import MLP, MLPEmbed, VAEMmbed
+from mmbeddings.models import MLP, EmbeddingsMLP, MmbeddingsVAE
 from mmbeddings.utils import ExpResult
 
 
@@ -31,11 +31,11 @@ class Experiment:
         input_dim = self.get_input_dimension(X_train)
         model = self.model_class(self.exp_in, input_dim)
         model.build()
-        model.fit(X_train, self.y_train)
+        history = model.fit(X_train, self.y_train)
         y_pred = model.predict(X_test)
         end = time.time()
         runtime = end - start
-        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred)
+        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, history)
         self.exp_res = ExpResult(mse, sigmas, nll_tr, nll_te, n_epochs, runtime)
 
     def summarize(self):
@@ -93,8 +93,9 @@ class IgnoreOHE(Experiment):
         return X_train.shape[1]
 
 class Embeddings(Experiment):
-    def __init__(self, exp_in):
-        super().__init__(exp_in, 'embeddings', MLPEmbed)
+    def __init__(self, exp_in, growth_model=False):
+        super().__init__(exp_in, 'embeddings', Embeddings)
+        self.growth_model = growth_model
 
     def prepare_input_data(self):
         X_train_z_cols = [self.X_train[z_col] for z_col in self.X_train.columns[self.X_train.columns.str.startswith('z')]]
@@ -102,26 +103,43 @@ class Embeddings(Experiment):
         X_train_input = [self.X_train[self.exp_in.x_cols]] + X_train_z_cols
         X_test_input = [self.X_test[self.exp_in.x_cols]] + X_test_z_cols
         return X_train_input, X_test_input
+    
+    def run(self):
+        """
+        Run the experiment, store the results in self.exp_res.
+        """
+        start = time.time()
+        X_train, X_test = self.prepare_input_data()
+        input_dim = self.get_input_dimension(X_train)
+        model = EmbeddingsMLP(self.exp_in, input_dim, self.growth_model)
+        model.compile(loss='mse', optimizer='adam')
+        history = model.fit_model(X_train, self.y_train)
+        y_pred = model.predict(X_test)
+        end = time.time()
+        runtime = end - start
+        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, history)
+        self.exp_res = ExpResult(mse, sigmas, nll_tr, nll_te, n_epochs, runtime)
 
 class Mmbeddings(Experiment):
-    def __init__(self, exp_in):
+    def __init__(self, exp_in, growth_model=False):
         super().__init__(exp_in, 'mmbeddings', Mmbeddings)
+        self.growth_model = growth_model
         self.RE_cols = self.get_RE_cols_by_prefix(self.X_train, self.exp_in.RE_cols_prefix)
     
     def run(self):
         start = time.time()
         X_train, Z_train, X_test, Z_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
-        model = VAEMmbed(self.exp_in, input_dim)
-        model.build()
-        model.fit(X_train, Z_train, self.y_train)
+        model = MmbeddingsVAE(self.exp_in, input_dim, self.growth_model)
+        model.compile(optimizer='adam')
+        history = model.fit_model(X_train, Z_train, self.y_train)
         mmbeddings_list, sig2bs_hat_list = model.predict_mmbeddings(X_train, Z_train, self.y_train)
         y_pred = model.predict(X_test, Z_test, mmbeddings_list)
-        losses_tr = model.evaluate(X_train, Z_train, self.y_train)
-        losses_te = model.evaluate(X_test, Z_test, self.y_test)
+        losses_tr = model.evaluate_model(X_train, Z_train, self.y_train)
+        losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
         end = time.time()
         runtime = end - start
-        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te)
+        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
         self.exp_res = ExpResult(mse, sigmas, nll_tr, nll_te, n_epochs, runtime)
 
     def prepare_input_data(self):

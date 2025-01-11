@@ -76,8 +76,12 @@ class Simulation:
             experiment = IgnoreOHE(self.exp_in, ignore_RE=False)
         elif exp_type == 'embeddings':
             experiment = Embeddings(self.exp_in)
+        elif exp_type == 'embeddings_growth_model':
+            experiment = Embeddings(self.exp_in, growth_model=True)
         elif exp_type == 'mmbeddings':
             experiment = Mmbeddings(self.exp_in)
+        elif exp_type == 'mmbeddings_growth_model':
+            experiment = Mmbeddings(self.exp_in, growth_model=True)
         else:
             raise NotImplementedError(f'{exp_type} experiment not implemented.')
         return experiment
