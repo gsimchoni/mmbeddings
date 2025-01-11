@@ -328,7 +328,7 @@ class MmbeddingsDecoderGrowthModel(Layer):
             ZB_list.append(ZB)
         Z_0, Z_1, Z_2 = ZB_list[0][:, 0:1], ZB_list[0][:, 1:2], ZB_list[0][:, 2:3]
         numerator = self.beta_1 + Z_0
-        denominator = 1 + tf.math.exp(-tf.math.divide_no_nan(X_input - (self.beta_2 + Z_1), tf.maximum(self.beta_3 + Z_2, 1e-1)))
+        denominator = 1 + tf.math.exp(tf.clip_by_value(-tf.math.divide_no_nan(X_input - (self.beta_2 + Z_1), tf.maximum(self.beta_3 + Z_2, 1e-1)), -50.0, 50.0))
         output = tf.math.divide_no_nan(numerator, denominator)
         return output, Z_mats
     

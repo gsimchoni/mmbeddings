@@ -1,13 +1,13 @@
 N_list:
-  - 10000
+  - 100000
 sig2e_list:
-  - 0.05
+  - 1.0
 sig2b_list:
   -
     - 1.0
 q_list:
   -
-    - 100
+    - 10000
 d: 3
 n_iter: 5
 n_per_cat: 3
@@ -28,8 +28,8 @@ dropout:
 activation: 'relu'
 X_non_linear: True
 Z_embed_dim_pct: 10
-batch: 100
-epochs: 200
+batch: 1000
+epochs: 1000
 patience:
 verbose: True
 log_params: False
