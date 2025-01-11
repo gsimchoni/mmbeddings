@@ -1,7 +1,7 @@
 import time
 import numpy as np
 import pandas as pd
-from mmbeddings.models import MLP, MLPEmbed, VAEMmbed, MLPEmbedGrowth
+from mmbeddings.models import MLP, EmbeddingsMLP, MmbeddingsVAE
 from mmbeddings.utils import ExpResult
 
 
@@ -93,19 +93,9 @@ class IgnoreOHE(Experiment):
         return X_train.shape[1]
 
 class Embeddings(Experiment):
-    def __init__(self, exp_in):
-        super().__init__(exp_in, 'embeddings', MLPEmbed)
-
-    def prepare_input_data(self):
-        X_train_z_cols = [self.X_train[z_col] for z_col in self.X_train.columns[self.X_train.columns.str.startswith('z')]]
-        X_test_z_cols = [self.X_test[z_col] for z_col in self.X_train.columns[self.X_train.columns.str.startswith('z')]]
-        X_train_input = [self.X_train[self.exp_in.x_cols]] + X_train_z_cols
-        X_test_input = [self.X_test[self.exp_in.x_cols]] + X_test_z_cols
-        return X_train_input, X_test_input
-
-class EmbeddingsGrowthModel(Experiment):
-    def __init__(self, exp_in):
-        super().__init__(exp_in, 'embeddings_growth_model', EmbeddingsGrowthModel)
+    def __init__(self, exp_in, growth_model=False):
+        super().__init__(exp_in, 'embeddings', Embeddings)
+        self.growth_model = growth_model
 
     def prepare_input_data(self):
         X_train_z_cols = [self.X_train[z_col] for z_col in self.X_train.columns[self.X_train.columns.str.startswith('z')]]
@@ -121,7 +111,7 @@ class EmbeddingsGrowthModel(Experiment):
         start = time.time()
         X_train, X_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
-        model = MLPEmbedGrowth(self.exp_in, input_dim)
+        model = EmbeddingsMLP(self.exp_in, input_dim, self.growth_model)
         model.compile(loss='mse', optimizer='adam')
         history = model.fit_model(X_train, self.y_train)
         y_pred = model.predict(X_test)
@@ -140,7 +130,7 @@ class Mmbeddings(Experiment):
         start = time.time()
         X_train, Z_train, X_test, Z_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
-        model = VAEMmbed(self.exp_in, input_dim, self.growth_model)
+        model = MmbeddingsVAE(self.exp_in, input_dim, self.growth_model)
         model.compile(optimizer='adam')
         history = model.fit_model(X_train, Z_train, self.y_train)
         mmbeddings_list, sig2bs_hat_list = model.predict_mmbeddings(X_train, Z_train, self.y_train)

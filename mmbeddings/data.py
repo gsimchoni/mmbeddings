@@ -32,6 +32,7 @@ class DataSimulator:
     def generate_data(self):
         """Generate the simulated dataset."""
         X = self.sample_fe()
+        # X = self.sample_fe_growth_model() # uncomment this line to sample fixed effects for growth model
         Z_idx_list, B_list = self.sample_re()
         noise = self.sample_noise()
         y = self.calculate_y(X, B_list, Z_idx_list, noise)
@@ -63,7 +64,7 @@ class DataSimulator:
                 sig2bs = np.repeat(sig2bs_mean, self.d)
             else:
                 sig2bs = (np.random.poisson(sig2bs_mean, self.d) + 1) * fs_factor
-            # sig2bs = [1.0, 1.0, 0.04]
+            # sig2bs = [1.0, 1.0, 0.1] # uncomment this line to sample random effects for growth model
             D = np.diag(sig2bs)
             # D[0,1] = D[1,0] = 0.5 * np.sqrt(sig2bs[0] * sig2bs[1])
             # D[1,2] = D[2,1] = 0.5 * np.sqrt(sig2bs[1] * sig2bs[2])
@@ -99,12 +100,14 @@ class DataSimulator:
 
         # Define a non-linear function on the input features
         non_linear_term = non_linear_fn0(input_features)
+        # non_linear_term = growth_model(input_features)
 
         # Ensure noise is reshaped to (N, 1) for consistency
         noise = noise.reshape(-1, 1) if noise.ndim == 1 else noise
 
         # Combine the non-linear term with noise
         y = non_linear_term + noise
+        # y = np.maximum(0.01, y) # uncomment this line to add a lower bound to the response in a growth model
 
         return y
 
@@ -226,7 +229,7 @@ def non_linear_fn9(input_features):
     non_linear_term = np.clip(non_linear_term, -1, 10)
     return non_linear_term
 
-def non_linear_fn10(input_features):
+def growth_model(input_features):
     # Pinheiro and Bates (2000) Orange trees / Soybean growth model
     x = input_features[:, 0]
     b1 = input_features[:, 1]

@@ -109,46 +109,112 @@ class MLP(BaseModel):
             monitor='val_loss', patience=self.exp_in.epochs if self.exp_in.patience is None else self.exp_in.patience)]
 
 
-class MLPEmbed(BaseModel):
-    def __init__(self, exp_in, input_dim):
+class EmbeddingsEncoder(Layer):
+    def __init__(self, qs, d, name="encoder", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.embeddings = self.build_embeddings(qs, d)
+    
+    def build_embeddings(self, qs, d):
+        embeddings = []
+        for i, q in enumerate(qs):
+            model = tf.keras.Sequential([
+                Embedding(q, d, input_length=1, name='embed' + str(i)),
+                Reshape(target_shape=(d,))
+            ])
+            embeddings.append(model)
+        return embeddings
+    
+    def call(self, inputs):
+        embeds = []
+        for i, embedding in enumerate(self.embeddings):
+            embeds.append(embedding(inputs[i]))
+        return embeds
+
+
+class EmbeddingsDecoder(Layer):
+    """"""
+
+    def __init__(self, exp_in, input_dim, name="decoder", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.exp_in = exp_in
+        self.input_dim = input_dim
+        self.concat_input_dim =  self.input_dim + self.exp_in.d * len(self.exp_in.qs)
+        self.nn = build_coder(self.concat_input_dim, self.exp_in.n_neurons,
+                              self.exp_in.dropout, self.exp_in.activation)
+        self.concat = Concatenate()
+        self.dense_output = Dense(1)
+
+    def call(self, X_input, embeds):
+        concat = self.concat([X_input] + embeds)
+        out_hidden = self.nn(concat)
+        output = self.dense_output(out_hidden)
+        return output
+
+
+class EmbeddingsDecoderGrowthModel(Layer):
+    """"""
+
+    def __init__(self, name="decoder", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.beta_1 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_1")
+        self.beta_2 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_2")
+        self.beta_3 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_3")
+
+    def call(self, X_input, embeds):
+        Z_0, Z_1, Z_2 = embeds[0][:, 0:1], embeds[0][:, 1:2], embeds[0][:, 2:3]
+        numerator = self.beta_1 + Z_0
+        denominator = 1 + tf.math.exp(-(X_input - (self.beta_2 + Z_1)) / tf.maximum(self.beta_3 + Z_2, 1e-1))
+        output = tf.math.divide_no_nan(numerator, denominator)
+        return output
+
+
+class EmbeddingsMLP(Model):
+    def __init__(self, exp_in, input_dim, growth_model=False):
         """
         Multi-layer perceptron model with embeddings.
         """
-        super().__init__(exp_in)
+        super(EmbeddingsMLP, self).__init__()
+        self.exp_in = exp_in
         self.input_dim = input_dim
-        
-    def build(self):
+        self.callbacks = [EarlyStopping(
+            monitor='val_loss', patience=self.exp_in.epochs if self.exp_in.patience is None else self.exp_in.patience)]
+        self.encoder = EmbeddingsEncoder(self.exp_in.qs, self.exp_in.d)
+        if growth_model:
+            self.decoder = EmbeddingsDecoderGrowthModel()
+        else:
+            self.decoder = EmbeddingsDecoder(self.exp_in, self.input_dim)
+            
+    def call(self, inputs):
         """
         Build the MLP model with embeddings.
         """
-        embed_dim = self.exp_in.d
-        X_input = Input(shape=(self.input_dim,))
-        Z_inputs = []
-        embeds = []
-        qs_list = list(self.exp_in.qs)
-        for i, q in enumerate(qs_list):
-            Z_input = Input(shape=(1,))
-            embed = Embedding(q, embed_dim, input_length=1, name='embed' + str(i))(Z_input)
-            embed = Reshape(target_shape=(embed_dim,))(embed)
-            Z_inputs.append(Z_input)
-            embeds.append(embed)
-        concat = Concatenate()([X_input] + embeds)
-        concat_input_dim =  self.input_dim + embed_dim * len(qs_list)
-        out_hidden = self.add_layers_functional(concat, concat_input_dim, self.exp_in.n_neurons, self.exp_in.dropout, self.exp_in.activation)
-        output = Dense(1)(out_hidden)
-        self.model = Model(inputs=[X_input] + Z_inputs, outputs=output)
+        X_input = inputs[0]
+        Z_inputs = [inputs[1]]
+        embeds = self.encoder(Z_inputs)
+        output = self.decoder(X_input, embeds)
+        return output
+    
+    def fit_model(self, X_train, y_train):
+        history = self.fit(X_train, y_train,
+                           epochs=self.exp_in.epochs, callbacks=self.callbacks,
+                           batch_size=self.exp_in.batch, validation_split=0.1,
+                           verbose=self.exp_in.verbose)
+        return history
+    
+    def summarize(self, y_test, y_pred, history):
+        mse = np.mean((y_test - y_pred.reshape(-1)) ** 2)
+        sigmas = (None, [None for _ in range(self.exp_in.n_sig2bs)])
+        nll_tr, nll_te = None, None
+        n_epochs = len(history.history['loss'])
+        return mse, sigmas, nll_tr, nll_te, n_epochs
 
-        self.model.compile(loss='mse', optimizer='adam')
-
-        self.callbacks = [EarlyStopping(
-            monitor='val_loss', patience=self.exp_in.epochs if self.exp_in.patience is None else self.exp_in.patience)]
 
 class Sampling(Layer):
     def call(self, inputs):
         mean, log_var = inputs
         return K.random_normal(K.shape(log_var)) * K.exp(log_var / 2) + mean
 
-class Encoder(Model):
+class MmbeddingsEncoder(Model):
     """"""
 
     def __init__(self, exp_in, input_dim, name="encoder", **kwargs):
@@ -186,7 +252,7 @@ class Encoder(Model):
             mmbeddings_list.append(mmbeddings)
         return mmbeddings_mean_list, mmbeddings_log_var_list, mmbeddings_list
 
-class Decoder(Layer):
+class MmbeddingsDecoder(Layer):
     """"""
 
     def __init__(self, exp_in, input_dim, name="decoder", **kwargs):
@@ -230,19 +296,65 @@ class Decoder(Layer):
         return output.numpy()
 
 
-class VAEMmbed(Model):
+class MmbeddingsDecoderGrowthModel(Layer):
+    """"""
+
+    def __init__(self, exp_in, input_dim, name="decoder", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.exp_in = exp_in
+        self.input_dim = input_dim
+        self.qs = self.exp_in.qs
+        self.n_RE_inputs = len(self.exp_in.qs)
+        self.concat = Concatenate()
+        self.beta_1 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_1")
+        self.beta_2 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_2")
+        self.beta_3 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_3")
+
+    def call(self, X_input, Z_inputs, mmbeddings_list):
+        Z_mats = []
+        for i in range(self.n_RE_inputs):
+            Z_input = Z_inputs[i]
+            if version.parse(tf.__version__) >= version.parse('2.8'):
+                Z = CategoryEncoding(num_tokens=self.qs[i], output_mode='one_hot')(Z_input)
+            else:
+                Z = CategoryEncoding(max_tokens=self.qs[i], output_mode='binary')(Z_input)
+            Z_mats.append(Z)
+        ZB_list = []
+        for i in range(self.n_RE_inputs):
+            Z = Z_mats[i]
+            decoder_re_inputs = mmbeddings_list[i]
+            B = tf.math.divide_no_nan(K.dot(K.transpose(Z), decoder_re_inputs), K.reshape(K.sum(Z, axis=0), (self.qs[i], 1)))
+            ZB = K.dot(Z, B)
+            ZB_list.append(ZB)
+        Z_0, Z_1, Z_2 = ZB_list[0][:, 0:1], ZB_list[0][:, 1:2], ZB_list[0][:, 2:3]
+        numerator = self.beta_1 + Z_0
+        denominator = 1 + tf.math.exp(-tf.math.divide_no_nan(X_input - (self.beta_2 + Z_1), tf.maximum(self.beta_3 + Z_2, 1e-1)))
+        output = tf.math.divide_no_nan(numerator, denominator)
+        return output, Z_mats
+    
+    def predict_with_custom_B(self, X_input, B_input):
+        X_input = tf.convert_to_tensor(X_input, dtype=tf.float32)
+        ZB = tf.convert_to_tensor(B_input[0], dtype=tf.float32)
+        Z_0, Z_1, Z_2 = ZB[:, 0:1], ZB[:, 1:2], ZB[:, 2:3]
+        numerator = self.beta_1 + Z_0
+        denominator = 1 + tf.math.exp(-tf.math.divide(X_input - (self.beta_2 + Z_1), tf.maximum(self.beta_3 + Z_2, 1e-1)))
+        output = tf.math.divide_no_nan(numerator, denominator)
+        return output.numpy()
+
+
+class MmbeddingsVAE(Model):
     def __init__(self, exp_in, input_dim, growth_model=False):
         """
         MLP-based VAE model for mmbeddings.
         """
-        super(VAEMmbed, self).__init__()
+        super(MmbeddingsVAE, self).__init__()
         self.exp_in = exp_in
         self.input_dim = input_dim
-        self.encoder = Encoder(exp_in, input_dim)
+        self.encoder = MmbeddingsEncoder(exp_in, input_dim)
         if growth_model:
-            decoder_class = DecoderGrowthModel
+            decoder_class = MmbeddingsDecoderGrowthModel
         else:
-            decoder_class = Decoder
+            decoder_class = MmbeddingsDecoder
         self.d = self.exp_in.d
         self.qs = self.exp_in.qs
         self.n_RE_inputs = len(self.exp_in.qs)
@@ -338,122 +450,3 @@ class VAEMmbed(Model):
     def evaluate_model(self, X, Z, y):
         total_loss, squared_loss, re_kl_loss = self.evaluate([X] + [y] + Z, verbose=self.exp_in.verbose)
         return total_loss, squared_loss, re_kl_loss
-
-class DecoderGrowthModel(Layer):
-    """"""
-
-    def __init__(self, exp_in, input_dim, name="decoder", **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.exp_in = exp_in
-        self.input_dim = input_dim
-        self.qs = self.exp_in.qs
-        self.n_RE_inputs = len(self.exp_in.qs)
-        self.concat = Concatenate()
-        self.beta_1 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_1")
-        self.beta_2 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_2")
-        self.beta_3 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_3")
-
-    def call(self, X_input, Z_inputs, mmbeddings_list):
-        Z_mats = []
-        for i in range(self.n_RE_inputs):
-            Z_input = Z_inputs[i]
-            if version.parse(tf.__version__) >= version.parse('2.8'):
-                Z = CategoryEncoding(num_tokens=self.qs[i], output_mode='one_hot')(Z_input)
-            else:
-                Z = CategoryEncoding(max_tokens=self.qs[i], output_mode='binary')(Z_input)
-            Z_mats.append(Z)
-        ZB_list = []
-        for i in range(self.n_RE_inputs):
-            Z = Z_mats[i]
-            decoder_re_inputs = mmbeddings_list[i]
-            B = tf.math.divide_no_nan(K.dot(K.transpose(Z), decoder_re_inputs), K.reshape(K.sum(Z, axis=0), (self.qs[i], 1)))
-            ZB = K.dot(Z, B)
-            ZB_list.append(ZB)
-        Z_0, Z_1, Z_2 = ZB_list[0][:, 0:1], ZB_list[0][:, 1:2], ZB_list[0][:, 2:3]
-        numerator = self.beta_1 + Z_0
-        denominator = 1 + tf.math.exp(-(X_input - (self.beta_2 + Z_1)) / tf.maximum(self.beta_3 + Z_2, 1e-1))
-        output = tf.math.divide_no_nan(numerator, denominator)
-        return output, Z_mats
-    
-    def predict_with_custom_B(self, X_input, B_input):
-        X_input = tf.convert_to_tensor(X_input, dtype=tf.float32)
-        ZB = tf.convert_to_tensor(B_input[0], dtype=tf.float32)
-        Z_0, Z_1, Z_2 = ZB[:, 0:1], ZB[:, 1:2], ZB[:, 2:3]
-        numerator = self.beta_1 + Z_0
-        denominator = 1 + tf.math.exp(-(X_input - (self.beta_2 + Z_1)) / tf.maximum(self.beta_3 + Z_2, 1e-1))
-        output = tf.math.divide_no_nan(numerator, denominator)
-        return output.numpy()
-
-class EmbeddingsEncoder(Layer):
-    def __init__(self, qs, d, name="encoder", **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.embeddings = self.build_embeddings(qs, d)
-    
-    def build_embeddings(self, qs, d):
-        embeddings = []
-        for i, q in enumerate(qs):
-            model = tf.keras.Sequential([
-                Embedding(q, d, input_length=1, name='embed' + str(i)),
-                Reshape(target_shape=(d,))
-            ])
-            embeddings.append(model)
-        return embeddings
-    
-    def call(self, inputs):
-        embeds = []
-        for i, embedding in enumerate(self.embeddings):
-            embeds.append(embedding(inputs[i]))
-        return embeds
-
-class EmbeddingsDecoderGrowthModel(Layer):
-    """"""
-
-    def __init__(self, name="decoder", **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.beta_1 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_1")
-        self.beta_2 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_2")
-        self.beta_3 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_3")
-
-    def call(self, X_input, embeds):
-        Z_0, Z_1, Z_2 = embeds[0][:, 0:1], embeds[0][:, 1:2], embeds[0][:, 2:3]
-        numerator = self.beta_1 + Z_0
-        denominator = 1 + tf.math.exp(-(X_input - (self.beta_2 + Z_1)) / tf.maximum(self.beta_3 + Z_2, 1e-1))
-        output = tf.math.divide_no_nan(numerator, denominator)
-        return output
-
-class MLPEmbedGrowth(Model):
-    def __init__(self, exp_in, input_dim):
-        """
-        Multi-layer perceptron model with embeddings.
-        """
-        super(MLPEmbedGrowth, self).__init__()
-        self.exp_in = exp_in
-        self.input_dim = input_dim
-        self.callbacks = [EarlyStopping(
-            monitor='val_loss', patience=self.exp_in.epochs if self.exp_in.patience is None else self.exp_in.patience)]
-        self.encoder = EmbeddingsEncoder(self.exp_in.qs, self.exp_in.d)
-        self.decoder = EmbeddingsDecoderGrowthModel()
-            
-    def call(self, inputs):
-        """
-        Build the MLP model with embeddings.
-        """
-        X_input = inputs[0]
-        Z_inputs = [inputs[1]]
-        embeds = self.encoder(Z_inputs)
-        output = self.decoder(X_input, embeds)
-        return output
-    
-    def fit_model(self, X_train, y_train):
-        history = self.fit(X_train, y_train,
-                           epochs=self.exp_in.epochs, callbacks=self.callbacks,
-                           batch_size=self.exp_in.batch, validation_split=0.1,
-                           verbose=self.exp_in.verbose)
-        return history
-    
-    def summarize(self, y_test, y_pred, history):
-        mse = np.mean((y_test - y_pred.reshape(-1)) ** 2)
-        sigmas = (None, [None for _ in range(self.exp_in.n_sig2bs)])
-        nll_tr, nll_te = None, None
-        n_epochs = len(history.history['loss'])
-        return mse, sigmas, nll_tr, nll_te, n_epochs
