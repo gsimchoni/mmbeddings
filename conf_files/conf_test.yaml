@@ -42,4 +42,5 @@ exp_types:
   - 'ignore'
   - 'ohe'
   - 'embeddings'
+  - 'regbeddings'
   - 'mmbeddings'

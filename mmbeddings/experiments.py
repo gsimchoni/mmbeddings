@@ -1,7 +1,7 @@
 import time
 import numpy as np
 import pandas as pd
-from mmbeddings.models import MLP, EmbeddingsMLP, MmbeddingsVAE
+from mmbeddings.models import MLP, EmbeddingsMLP, MmbeddingsVAE, RegbeddingsMLP
 from mmbeddings.utils import ExpResult
 
 
@@ -135,6 +135,43 @@ class Mmbeddings(Experiment):
         history = model.fit_model(X_train, Z_train, self.y_train)
         mmbeddings_list, sig2bs_hat_list = model.predict_mmbeddings(X_train, Z_train, self.y_train)
         y_pred = model.predict(X_test, Z_test, mmbeddings_list)
+        losses_tr = model.evaluate_model(X_train, Z_train, self.y_train)
+        losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
+        end = time.time()
+        runtime = end - start
+        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
+        self.exp_res = ExpResult(mse, sigmas, nll_tr, nll_te, n_epochs, runtime)
+
+    def prepare_input_data(self):
+        X_train, Z_train = self.prepare_input_data_single_set(self.X_train)
+        X_test, Z_test = self.prepare_input_data_single_set(self.X_test)
+        return X_train, Z_train, X_test, Z_test
+
+    def get_RE_cols_by_prefix(self, df, prefix):
+        RE_cols = list(df.columns[df.columns.str.startswith(prefix)])
+        return RE_cols
+    
+    def prepare_input_data_single_set(self, X):
+        X_train = X[self.exp_in.x_cols].copy()
+        Z_train = [X[RE_col].copy() for RE_col in self.RE_cols]
+        return X_train, Z_train
+
+
+class Regbeddings(Experiment):
+    def __init__(self, exp_in, growth_model=False):
+        super().__init__(exp_in, 'regbeddings', Regbeddings)
+        self.growth_model = growth_model
+        self.RE_cols = self.get_RE_cols_by_prefix(self.X_train, self.exp_in.RE_cols_prefix)
+    
+    def run(self):
+        start = time.time()
+        X_train, Z_train, X_test, Z_test = self.prepare_input_data()
+        input_dim = self.get_input_dimension(X_train)
+        model = RegbeddingsMLP(self.exp_in, input_dim, self.growth_model)
+        model.compile(optimizer='adam')
+        history = model.fit_model(X_train, Z_train, self.y_train)
+        regbeddings_list, sig2bs_hat_list = model.predict_regbeddings()
+        y_pred = model.predict_model(X_test, Z_test)
         losses_tr = model.evaluate_model(X_train, Z_train, self.y_train)
         losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
         end = time.time()

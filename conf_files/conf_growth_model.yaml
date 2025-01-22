@@ -40,4 +40,5 @@ re_sig2b_prior: 1.0
 beta_vae: 0.01
 exp_types:
   - 'embeddings_growth_model'
+  - 'regbeddings_growth_model'
   - 'mmbeddings_growth_model'
