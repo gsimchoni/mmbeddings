@@ -189,7 +189,7 @@ class EmbeddingsMLP(Model):
         Build the MLP model with embeddings.
         """
         X_input = inputs[0]
-        Z_inputs = [inputs[1]]
+        Z_inputs = inputs[1:]
         embeds = self.encoder(Z_inputs)
         output = self.decoder(X_input, embeds)
         return output
@@ -371,7 +371,7 @@ class MmbeddingsVAE(Model):
         """
         X_input = inputs[0]
         y_input = inputs[1]
-        Z_inputs = [inputs[2]]
+        Z_inputs = inputs[2:]
         mmbeddings_mean_list, mmbeddings_log_var_list, mmbeddings_list = self.encoder((X_input, y_input))
         output, Z_mats = self.decoder(X_input, Z_inputs, mmbeddings_list)
 
