@@ -110,7 +110,7 @@ class RegbeddingsMLP(Model):
                            verbose=self.exp_in.verbose)
         return history
     
-    def predict_regbeddings(self):
+    def predict_embeddings(self, X_train, Z_train, y_train):
         regbeddings_list = []
         for i in range(self.n_RE_inputs):
             regbeddings = self.encoder.get_layer('embed_mean' + str(i)).get_weights()[0]
@@ -118,7 +118,7 @@ class RegbeddingsMLP(Model):
         sig2bs_hat_list = [regbeddings_list[i].var(axis=0) for i in range(len(regbeddings_list))]
         return regbeddings_list, sig2bs_hat_list
     
-    def predict_model(self, X_test, Z_test):
+    def predict_model(self, X_test, Z_test, embeddings_list):
         dummy_y_test = np.random.normal(size=(X_test.shape[0],))
         y_pred = self.predict([X_test] + [dummy_y_test] + Z_test).reshape(-1)
         return y_pred    
