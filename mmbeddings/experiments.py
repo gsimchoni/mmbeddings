@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import pandas as pd
+from mmbeddings.models.lmmnn.lmmnn import run_lmmnn
 from mmbeddings.models.mlp import MLP
 from mmbeddings.models.embeddings import EmbeddingsMLP
 from mmbeddings.models.mmbeddings import MmbeddingsVAE
@@ -123,21 +124,25 @@ class Embeddings(Experiment):
         mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, history)
         self.exp_res = ExpResult(mse, sigmas, nll_tr, nll_te, n_epochs, runtime)
 
-class Mmbeddings(Experiment):
-    def __init__(self, exp_in, growth_model=False):
-        super().__init__(exp_in, 'mmbeddings', Mmbeddings)
+class REbeddings(Experiment):
+    def __init__(self, exp_in, REbeddings_type, growth_model=False):
+        super().__init__(exp_in, REbeddings_type, REbeddings)
         self.growth_model = growth_model
         self.RE_cols = self.get_RE_cols_by_prefix(self.X_train, self.exp_in.RE_cols_prefix)
+        if REbeddings_type == 'mmbeddings':
+            self.model_class = MmbeddingsVAE
+        elif REbeddings_type == 'regbeddings':
+            self.model_class = RegbeddingsMLP
     
     def run(self):
         start = time.time()
         X_train, Z_train, X_test, Z_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
-        model = MmbeddingsVAE(self.exp_in, input_dim, self.growth_model)
+        model = self.model_class(self.exp_in, input_dim, self.growth_model)
         model.compile(optimizer='adam')
         history = model.fit_model(X_train, Z_train, self.y_train)
-        mmbeddings_list, sig2bs_hat_list = model.predict_mmbeddings(X_train, Z_train, self.y_train)
-        y_pred = model.predict(X_test, Z_test, mmbeddings_list)
+        embeddings_list, sig2bs_hat_list = model.predict_embeddings(X_train, Z_train, self.y_train)
+        y_pred = model.predict_model(X_test, Z_test, embeddings_list)
         losses_tr = model.evaluate_model(X_train, Z_train, self.y_train)
         losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
         end = time.time()
@@ -160,38 +165,36 @@ class Mmbeddings(Experiment):
         return X_train, Z_train
 
 
-class Regbeddings(Experiment):
-    def __init__(self, exp_in, growth_model=False):
-        super().__init__(exp_in, 'regbeddings', Regbeddings)
-        self.growth_model = growth_model
-        self.RE_cols = self.get_RE_cols_by_prefix(self.X_train, self.exp_in.RE_cols_prefix)
+class LMMNN(Experiment):
+    def __init__(self, exp_in):
+        super().__init__(exp_in, 'lmmnn', LMMNN)
     
     def run(self):
         start = time.time()
-        X_train, Z_train, X_test, Z_test = self.prepare_input_data()
-        input_dim = self.get_input_dimension(X_train)
-        model = RegbeddingsMLP(self.exp_in, input_dim, self.growth_model)
-        model.compile(optimizer='adam')
-        history = model.fit_model(X_train, Z_train, self.y_train)
-        regbeddings_list, sig2bs_hat_list = model.predict_regbeddings()
-        y_pred = model.predict_model(X_test, Z_test)
-        losses_tr = model.evaluate_model(X_train, Z_train, self.y_train)
-        losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
+        (q_spatial, mode, y_type, n_sig2bs_spatial, est_cors, dist_matrix,
+         spatial_embed_neurons, Z_non_linear, shuffle, sample_n_train) = self.get_init_vals()
+        y_pred, sigmas, rhos, n_epochs, nll_tr, nll_te, y_pred_no_re = run_lmmnn(
+            self.X_train, self.X_test, self.y_train, self.y_test, self.exp_in.qs,
+            q_spatial, self.exp_in.x_cols, self.exp_in.batch, self.exp_in.epochs,
+            self.exp_in.patience, self.exp_in.n_neurons, self.exp_in.dropout,
+            self.exp_in.activation, mode, y_type, self.n_sig2bs, n_sig2bs_spatial,
+            est_cors, dist_matrix, spatial_embed_neurons, self.exp_in.verbose,
+            Z_non_linear, self.exp_in.Z_embed_dim_pct, self.exp_in.log_params,
+            self.exp_in.k, shuffle, sample_n_train, self.exp_in.B_true_list)
         end = time.time()
         runtime = end - start
-        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
+        mse = np.mean((y_pred - self.y_test)**2)
         self.exp_res = ExpResult(mse, sigmas, nll_tr, nll_te, n_epochs, runtime)
 
-    def prepare_input_data(self):
-        X_train, Z_train = self.prepare_input_data_single_set(self.X_train)
-        X_test, Z_test = self.prepare_input_data_single_set(self.X_test)
-        return X_train, Z_train, X_test, Z_test
-
-    def get_RE_cols_by_prefix(self, df, prefix):
-        RE_cols = list(df.columns[df.columns.str.startswith(prefix)])
-        return RE_cols
-    
-    def prepare_input_data_single_set(self, X):
-        X_train = X[self.exp_in.x_cols].copy()
-        Z_train = [X[RE_col].copy() for RE_col in self.RE_cols]
-        return X_train, Z_train
+    def get_init_vals(self):
+        q_spatial = None
+        mode = 'categorical'
+        y_type = 'continuous'
+        n_sig2bs_spatial = 0
+        est_cors = []
+        dist_matrix = None
+        spatial_embed_neurons = []
+        Z_non_linear = False
+        shuffle = True
+        sample_n_train=10000
+        return q_spatial,mode,y_type,n_sig2bs_spatial,est_cors,dist_matrix,spatial_embed_neurons,Z_non_linear,shuffle,sample_n_train

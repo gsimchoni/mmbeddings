@@ -206,7 +206,7 @@ class MmbeddingsVAE(Model):
                            verbose=self.exp_in.verbose)
         return history
     
-    def predict_mmbeddings(self, X_train, Z_train, y_train):
+    def predict_embeddings(self, X_train, Z_train, y_train):
         _, _, mmbeddings_list = self.encoder.predict((X_train, y_train))
         mmbeddings_list_processed = self.extract_mmbeddings(Z_train, mmbeddings_list)
         sig2bs_hat_list = [mmbeddings_list_processed[i].var(axis=0) for i in range(len(mmbeddings_list_processed))]
@@ -222,7 +222,7 @@ class MmbeddingsVAE(Model):
             B_df_list.append(B_df_grouped)
         return B_df_list
     
-    def predict(self, X_test, Z_test, B_hat_list):
+    def predict_model(self, X_test, Z_test, B_hat_list):
         B_hat_list_processed = self.replicate_Bs_to_predict(Z_test, B_hat_list)
         y_pred = self.decoder.predict_with_custom_B(X_test, B_hat_list_processed).reshape(-1)
         return y_pred    

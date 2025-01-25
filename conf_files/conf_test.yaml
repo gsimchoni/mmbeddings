@@ -43,4 +43,5 @@ exp_types:
   - 'ohe'
   - 'embeddings'
   - 'regbeddings'
+  - 'lmmnn'
   - 'mmbeddings'

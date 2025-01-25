@@ -33,3 +33,18 @@ def get_dummies(vec, vec_max):
     Z = sparse.csr_matrix((np.ones(vec_size), (np.arange(vec_size), vec)), shape=(
         vec_size, vec_max), dtype=np.uint8)
     return Z
+
+def get_cov_mat(sig2bs, rhos, est_cors):
+    cov_mat = np.zeros((len(sig2bs), len(sig2bs)))
+    for k in range(len(sig2bs)):
+        for j in range(len(sig2bs)):
+            if k == j:
+                cov_mat[k, j] = sig2bs[k]
+            else:
+                rho_symbol = ''.join(map(str, sorted([k, j])))
+                if rho_symbol in est_cors:
+                    rho = rhos[est_cors.index(rho_symbol)]
+                else:
+                    rho = 0
+                cov_mat[k, j] = rho * np.sqrt(sig2bs[k]) * np.sqrt(sig2bs[j])
+    return cov_mat

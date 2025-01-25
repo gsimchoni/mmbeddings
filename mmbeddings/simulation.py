@@ -2,7 +2,7 @@ from itertools import product
 import pandas as pd
 
 from mmbeddings.data import DataSimulator, ExperimentInput
-from mmbeddings.experiments import Embeddings, IgnoreOHE, Mmbeddings, Regbeddings
+from mmbeddings.experiments import LMMNN, Embeddings, IgnoreOHE, REbeddings
 from mmbeddings.utils import Count
 
 class Simulation:
@@ -79,13 +79,15 @@ class Simulation:
         elif exp_type == 'embeddings_growth_model':
             experiment = Embeddings(self.exp_in, growth_model=True)
         elif exp_type == 'mmbeddings':
-            experiment = Mmbeddings(self.exp_in)
+            experiment = REbeddings(self.exp_in, REbeddings_type='mmbeddings')
         elif exp_type == 'mmbeddings_growth_model':
-            experiment = Mmbeddings(self.exp_in, growth_model=True)
+            experiment = REbeddings(self.exp_in, REbeddings_type='mmbeddings', growth_model=True)
         elif exp_type == 'regbeddings':
-            experiment = Regbeddings(self.exp_in)
+            experiment = REbeddings(self.exp_in, REbeddings_type='regbeddings')
         elif exp_type == 'regbeddings_growth_model':
-            experiment = Regbeddings(self.exp_in, growth_model=True)
+            experiment = REbeddings(self.exp_in, REbeddings_type='regbeddings', growth_model=True)
+        elif exp_type == 'lmmnn':
+            experiment = LMMNN(self.exp_in)
         else:
             raise NotImplementedError(f'{exp_type} experiment not implemented.')
         return experiment
