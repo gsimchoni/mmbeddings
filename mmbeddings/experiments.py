@@ -1,7 +1,10 @@
 import time
 import numpy as np
 import pandas as pd
-from mmbeddings.models import MLP, EmbeddingsMLP, MmbeddingsVAE, RegbeddingsMLP
+from mmbeddings.models.mlp import MLP
+from mmbeddings.models.embeddings import EmbeddingsMLP
+from mmbeddings.models.mmbeddings import MmbeddingsVAE
+from mmbeddings.models.regbeddings import RegbeddingsMLP
 from mmbeddings.utils import ExpResult
 
 
