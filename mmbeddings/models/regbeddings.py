@@ -120,7 +120,7 @@ class RegbeddingsMLP(Model):
     
     def predict_model(self, X_test, Z_test, embeddings_list):
         dummy_y_test = np.random.normal(size=(X_test.shape[0],))
-        y_pred = self.predict([X_test] + [dummy_y_test] + Z_test).reshape(-1)
+        y_pred = self.predict([X_test] + [dummy_y_test] + Z_test, batch_size=self.exp_in.batch).reshape(-1)
         return y_pred    
 
     def replicate_Bs_to_predict(self, Z_test, B_hat_list):
@@ -139,8 +139,9 @@ class RegbeddingsMLP(Model):
         sigmas = [None, sig2bs_mean_est]
         nll_tr, nll_te = losses_tr[0], losses_te[0]
         n_epochs = len(history.history['loss'])
-        return mse, sigmas, nll_tr, nll_te, n_epochs
+        n_params = self.count_params()
+        return mse, sigmas, nll_tr, nll_te, n_epochs, n_params
     
     def evaluate_model(self, X, Z, y):
-        total_loss, squared_loss, re_kl_loss = self.evaluate([X] + [y] + Z, verbose=self.exp_in.verbose)
+        total_loss, squared_loss, re_kl_loss = self.evaluate([X] + [y] + Z, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)
         return total_loss, squared_loss, re_kl_loss

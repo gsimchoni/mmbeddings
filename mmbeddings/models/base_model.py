@@ -28,7 +28,8 @@ class BaseModel:
         sigmas = (None, [None for _ in range(self.exp_in.n_sig2bs)])
         nll_tr, nll_te = None, None
         n_epochs = len(history.history['loss'])
-        return mse, sigmas, nll_tr, nll_te, n_epochs
+        n_params = self.model.count_params()
+        return mse, sigmas, nll_tr, nll_te, n_epochs, n_params
     
     def add_layers_sequential(self, input_dim):
         n_neurons = self.exp_in.n_neurons
