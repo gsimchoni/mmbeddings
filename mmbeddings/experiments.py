@@ -5,8 +5,10 @@ from mmbeddings.models.lmmnn.lmmnn import run_lmmnn
 from mmbeddings.models.mlp import MLP
 from mmbeddings.models.embeddings import EmbeddingsMLP
 from mmbeddings.models.mmbeddings import MmbeddingsVAE
+from mmbeddings.models.mmbeddings2 import MmbeddingsVAE2
 from mmbeddings.models.regbeddings import RegbeddingsMLP
 from mmbeddings.utils import ExpResult
+from mmbeddings.metrics import calculate_embedding_metrics
 
 
 class Experiment:
@@ -39,17 +41,21 @@ class Experiment:
         y_pred = model.predict(X_test)
         end = time.time()
         runtime = end - start
-        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, history)
-        self.exp_res = ExpResult(mse, sigmas, nll_tr, nll_te, n_epochs, runtime)
+        mse, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history)
+        frobenius, spearman, nrmse = None, None, None
+        self.exp_res = ExpResult(mse, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
     def summarize(self):
         """
         Summarize the results of the experiment.
         """
-        res_summary = [self.exp_in.N, self.exp_in.test_size, self.exp_in.batch, self.exp_in.pred_unknown, self.exp_in.sig2e] +\
+        res_summary = [self.exp_in.n_train, self.exp_in.n_test, self.exp_in.batch] +\
+            [self.exp_in.pred_unknown, self.exp_in.sig2e, self.exp_in.beta_vae] +\
             list(self.exp_in.sig2bs) + list(self.exp_in.qs) +\
-            [self.exp_in.k, self.exp_type, self.exp_res.mse, self.exp_res.sigmas[0]] +\
-            self.exp_res.sigmas[1] + [self.exp_res.nll_tr, self.exp_res.nll_te, self.exp_res.n_epochs, self.exp_res.time]
+            [self.exp_in.k, self.exp_type, self.exp_res.mse] +\
+            [self.exp_res.frobenius, self.exp_res.spearman, self.exp_res.nrmse, self.exp_res.sigmas[0]] +\
+            self.exp_res.sigmas[1] + [self.exp_res.nll_tr, self.exp_res.nll_te] + \
+                [self.exp_res.n_epochs, self.exp_res.time, self.exp_res.n_params]
         return res_summary
     
     def get_input_dimension(self, X_train):
@@ -118,11 +124,15 @@ class Embeddings(Experiment):
         model = EmbeddingsMLP(self.exp_in, input_dim, self.growth_model)
         model.compile(loss='mse', optimizer='adam')
         history = model.fit_model(X_train, self.y_train)
-        y_pred = model.predict(X_test)
+        embeddings_list = [embed.get_weights()[0] for embed in model.encoder.embeddings]
+        sig2bs_hat_list = [embeddings_list[i].var(axis=0) for i in range(len(embeddings_list))]
+        y_pred = model.predict(X_test, batch_size=self.exp_in.batch)
         end = time.time()
         runtime = end - start
-        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, history)
-        self.exp_res = ExpResult(mse, sigmas, nll_tr, nll_te, n_epochs, runtime)
+        mse, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
+        frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
+        self.exp_res = ExpResult(mse, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
+
 
 class REbeddings(Experiment):
     def __init__(self, exp_in, REbeddings_type, growth_model=False):
@@ -133,6 +143,8 @@ class REbeddings(Experiment):
             self.model_class = MmbeddingsVAE
         elif REbeddings_type == 'regbeddings':
             self.model_class = RegbeddingsMLP
+        elif REbeddings_type == 'mmbeddings-v2':
+            self.model_class = MmbeddingsVAE2
     
     def run(self):
         start = time.time()
@@ -147,8 +159,9 @@ class REbeddings(Experiment):
         losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
         end = time.time()
         runtime = end - start
-        mse, sigmas, nll_tr, nll_te, n_epochs = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
-        self.exp_res = ExpResult(mse, sigmas, nll_tr, nll_te, n_epochs, runtime)
+        mse, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
+        frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
+        self.exp_res = ExpResult(mse, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
     def prepare_input_data(self):
         X_train, Z_train = self.prepare_input_data_single_set(self.X_train)
@@ -173,7 +186,7 @@ class LMMNN(Experiment):
         start = time.time()
         (q_spatial, mode, y_type, n_sig2bs_spatial, est_cors, dist_matrix,
          spatial_embed_neurons, Z_non_linear, shuffle, sample_n_train) = self.get_init_vals()
-        y_pred, sigmas, rhos, n_epochs, nll_tr, nll_te, y_pred_no_re = run_lmmnn(
+        y_pred, sigmas, rhos, n_epochs, nll_tr, nll_te, y_pred_no_re, n_params = run_lmmnn(
             self.X_train, self.X_test, self.y_train, self.y_test, self.exp_in.qs,
             q_spatial, self.exp_in.x_cols, self.exp_in.batch, self.exp_in.epochs,
             self.exp_in.patience, self.exp_in.n_neurons, self.exp_in.dropout,
@@ -184,7 +197,8 @@ class LMMNN(Experiment):
         end = time.time()
         runtime = end - start
         mse = np.mean((y_pred - self.y_test)**2)
-        self.exp_res = ExpResult(mse, sigmas, nll_tr, nll_te, n_epochs, runtime)
+        frobenius, spearman, nrmse = None, None, None
+        self.exp_res = ExpResult(mse, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
     def get_init_vals(self):
         q_spatial = None

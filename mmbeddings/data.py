@@ -6,22 +6,24 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 class DataSimulator:
-    def __init__(self, qs, sig2e, sig2bs, N, test_size, pred_unknown_clusters, params):
+    def __init__(self, qs, sig2e, sig2bs, n_train, n_test, pred_unknown_clusters, params):
         """
         Parameters:
         qs : list[int] - Number of clusters for each random effect.
         sig2e : float - Variance of the Gaussian noise.
         sig2bs : list[float] - Variances for each random effect embedding.
-        N : int - Total number of samples.
-        test_size : float - Proportion of data to be used as test set.
+        n_train : int - Total number of training samples.
+        n_test : int - Total number of testing samples.
         pred_unknown_clusters : bool - Whether to predict unknown clusters during testing.
         params : dict - Additional parameters for fixed effects.
         """
         self.qs = qs
         self.sig2e = sig2e
         self.sig2bs = sig2bs
-        self.N = N
-        self.test_size = test_size
+        self.n_train = n_train
+        self.n_test = n_test
+        self.N = self.n_train + self.n_test
+        self.test_size = self.n_test / self.N
         self.pred_unknown_clusters = pred_unknown_clusters
         self.params = params
         self.p = params.get('n_fixed_effects', 10)
@@ -33,7 +35,7 @@ class DataSimulator:
         """Generate the simulated dataset."""
         X = self.sample_fe()
         # X = self.sample_fe_growth_model() # uncomment this line to sample fixed effects for growth model
-        Z_idx_list, B_list = self.sample_re()
+        Z_idx_list, B_list = self.sample_re(X, X_dependent=False)
         noise = self.sample_noise()
         y = self.calculate_y(X, B_list, Z_idx_list, noise)
         df, x_cols = self.create_df(X, Z_idx_list, y)
@@ -50,7 +52,7 @@ class DataSimulator:
         X = np.random.uniform(0, 20, self.N * self.p).reshape((self.N, self.p))
         return X
 
-    def sample_re(self):
+    def sample_re(self, X, X_dependent=False):
         """Sample random effects embeddings"""
         Z_idx_list = []
         B_list = []
@@ -69,6 +71,13 @@ class DataSimulator:
             # D[0,1] = D[1,0] = 0.5 * np.sqrt(sig2bs[0] * sig2bs[1])
             # D[1,2] = D[2,1] = 0.5 * np.sqrt(sig2bs[1] * sig2bs[2])
             B = np.random.multivariate_normal(np.zeros(self.d), D, q)
+            if X_dependent:
+                try:
+                    B2 = np.random.multivariate_normal(np.zeros(self.d), D, q)
+                    # B += 0.1 * X[:q, :self.d]
+                    B = np.where(X[:q, 0:1] > 0, B, B2)  # Use broadcasting to select rows
+                except:
+                    pass
             B_list.append(B)
             fs = np.random.poisson(self.n_per_cat, q) + 1
             fs_sum = fs.sum()
@@ -136,12 +145,12 @@ class DataSimulator:
         return X_train, X_test, y_train, y_test
 
 class ExperimentInput:
-    def __init__(self, exp_data, N, test_size, pred_unknown_clusters, qs, d, sig2e, sig2bs, k, n_sig2bs, params):
+    def __init__(self, exp_data, n_train, n_test, pred_unknown_clusters, qs, d, sig2e, sig2bs, k, n_sig2bs, params):
         """
         Parameters:
         exp_data : namedtuple - Experiment data namedtuple.
-        N : int - Total number of samples.
-        test_size : float - Proportion of data to be used as test set.
+        n_train : int - Total number of training samples.
+        n_test : int - Total number of testing samples.
         pred_unknown_clusters : bool - Whether to predict unknown clusters during testing.
         qs : list[int] - Number of clusters for each random effect.
         sig2e : float - Variance of the Gaussian noise.
@@ -151,8 +160,8 @@ class ExperimentInput:
         params : dict - Additional parameters for the experiment.
         """
         self.exp_data = exp_data
-        self.N = N
-        self.test_size = test_size
+        self.n_train = n_train
+        self.n_test = n_test
         self.pred_unknown_clusters = pred_unknown_clusters
         self.qs = qs
         self.d = d
@@ -164,7 +173,7 @@ class ExperimentInput:
 
     def get(self):
         """Return an ExpInput namedtuple."""
-        return ExpInput(*self.exp_data, self.N, self.test_size, self.pred_unknown_clusters, self.qs, self.d, self.sig2e,
+        return ExpInput(*self.exp_data, self.n_train, self.n_test, self.pred_unknown_clusters, self.qs, self.d, self.sig2e,
                         self.sig2bs, self.k, self.params['batch'], self.params['epochs'], self.params['patience'],
                         self.params['Z_embed_dim_pct'], self.n_sig2bs, self.params['verbose'], self.params['n_neurons'],
                         self.params['dropout'], self.params['activation'], self.params['RE_cols_prefix'],
