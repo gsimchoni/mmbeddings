@@ -11,14 +11,26 @@ def frobenius_distance(true_embed_list, pred_embed_list):
         frob_distances.append(frob_norm)
     return np.mean(frob_distances)
 
-def spearman_rank_correlation(true_embed_list, pred_embed_list):
-    if any(X.shape[0] > 5000 for X in true_embed_list + pred_embed_list):
-        return None
+def spearman_rank_correlation(true_embed_list, pred_embed_list, sample_size=1000000):
     spearman_corrs = []
     for X_true, X_pred in zip(true_embed_list, pred_embed_list):
-        D_true = cdist(X_true, X_true, metric='euclidean').flatten()
-        D_pred = cdist(X_pred, X_pred, metric='euclidean').flatten()
-        corr, _ = spearmanr(D_true, D_pred)
+        D_true = cdist(X_true, X_true, metric='euclidean')
+        D_pred = cdist(X_pred, X_pred, metric='euclidean')
+
+        # Flatten the matrices
+        D_true_flat = D_true.flatten()
+        D_pred_flat = D_pred.flatten()
+
+        # Randomly sample indices
+        if sample_size < len(D_true_flat):
+            indices = np.random.choice(len(D_true_flat), sample_size, replace=False)
+            D_true_sampled = D_true_flat[indices]
+            D_pred_sampled = D_pred_flat[indices]
+        else:
+            D_true_sampled = D_true_flat
+            D_pred_sampled = D_pred_flat
+
+        corr, _ = spearmanr(D_true_sampled, D_pred_sampled)
         spearman_corrs.append(corr if corr is not None else 0.0)
     return np.mean(spearman_corrs)
 
