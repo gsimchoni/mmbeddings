@@ -42,7 +42,7 @@ class Experiment:
         end = time.time()
         runtime = end - start
         mse, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history)
-        frobenius, spearman, nrmse = None, None, None
+        frobenius, spearman, nrmse = np.nan, np.nan, np.nan
         self.exp_res = ExpResult(mse, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
     def summarize(self):
@@ -126,7 +126,7 @@ class Embeddings(Experiment):
         history = model.fit_model(X_train, self.y_train)
         embeddings_list = [embed.get_weights()[0] for embed in model.encoder.embeddings]
         sig2bs_hat_list = [embeddings_list[i].var(axis=0) for i in range(len(embeddings_list))]
-        y_pred = model.predict(X_test, batch_size=self.exp_in.batch)
+        y_pred = model.predict(X_test, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)
         end = time.time()
         runtime = end - start
         mse, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
@@ -197,7 +197,7 @@ class LMMNN(Experiment):
         end = time.time()
         runtime = end - start
         mse = np.mean((y_pred - self.y_test)**2)
-        frobenius, spearman, nrmse = None, None, None
+        frobenius, spearman, nrmse = np.nan, np.nan, np.nan
         self.exp_res = ExpResult(mse, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
     def get_init_vals(self):

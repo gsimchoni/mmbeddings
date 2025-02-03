@@ -102,8 +102,8 @@ class EmbeddingsMLP(Model):
     def summarize(self, y_test, y_pred, history, sig2bs_hat_list):
         mse = np.mean((y_test - y_pred.reshape(-1)) ** 2)
         sig2bs_mean_est = [np.mean(sig2bs) for sig2bs in sig2bs_hat_list]
-        sigmas = [None, sig2bs_mean_est]
-        nll_tr, nll_te = None, None
+        sigmas = [np.nan, sig2bs_mean_est]
+        nll_tr, nll_te = np.nan, np.nan
         n_epochs = len(history.history['loss'])
         n_params = self.count_params()
         return mse, sigmas, nll_tr, nll_te, n_epochs, n_params

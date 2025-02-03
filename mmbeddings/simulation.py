@@ -54,6 +54,34 @@ class Simulation:
                                                         sig2e, sig2bs, k, self.n_sig2bs, self.params).get()
                                 self.iterate_experiment_types()
 
+    def get_dtype_dict(self):
+        dtype_dict = {
+            'n_train': 'int64',
+            'n_test': 'int64',
+            'batch': 'int64',
+            'pred_unknown': 'bool',
+            'sig2e': 'float64',
+            'beta': 'float64',
+            'experiment': 'int64',
+            'exp_type': 'object',
+            'mse': 'float64',
+            'frobenius': 'float64',
+            'spearman': 'float64',
+            'nrmse': 'float64',
+            'sig2e_est': 'float64',
+            'nll_train': 'float64',
+            'nll_test': 'float64',
+            'n_epochs': 'int64',
+            'time': 'float64',
+            'n_params': 'int64'
+        }
+        for k in self.sig2bs_names + self.sig2bs_est_names:
+            dtype_dict[k] = 'float64'
+
+        for k in self.qs_names:
+            dtype_dict[k] = 'int64'
+        return dtype_dict
+    
     def create_res_df(self):
         """
         Create an empty simulation results DataFrame.
@@ -66,6 +94,8 @@ class Simulation:
                                 ['experiment', 'exp_type', 'mse', 'frobenius', 'spearman', 'nrmse', 'sig2e_est'] +\
                                     self.sig2bs_est_names +\
                                         ['nll_train', 'nll_test', 'n_epochs', 'time', 'n_params'])
+        dtype_dict = self.get_dtype_dict()
+        res_df = res_df.astype(dtype_dict)
         return res_df
     
     def get_experiment(self, exp_type):

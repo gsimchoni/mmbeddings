@@ -205,7 +205,7 @@ class MmbeddingsVAE2(Model):
         return history
     
     def predict_embeddings(self, X_train, Z_train, y_train):
-        _, _, mmbeddings_list, _ = self.encoder.predict([X_train] + [y_train] + Z_train, batch_size=100000)
+        _, _, mmbeddings_list, _ = self.encoder.predict([X_train] + [y_train] + Z_train, verbose=self.exp_in.verbose, batch_size=100000)
         sig2bs_hat_list = [mmbeddings_list[i].var(axis=0) for i in range(len(mmbeddings_list))]
         return mmbeddings_list, sig2bs_hat_list
     
@@ -237,7 +237,7 @@ class MmbeddingsVAE2(Model):
     def summarize(self, y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history):
         mse = np.mean((y_test - y_pred) ** 2)
         sig2bs_mean_est = [np.mean(sig2bs) for sig2bs in sig2bs_hat_list]
-        sigmas = [None, sig2bs_mean_est]
+        sigmas = [np.nan, sig2bs_mean_est]
         nll_tr, nll_te = losses_tr[0], losses_te[0]
         n_epochs = len(history.history['loss'])
         n_params = self.count_params()
