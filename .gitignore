@@ -133,7 +133,11 @@ dmypy.json
 
 # res files
 /res*.csv
+/res_*
+growth*.csv
 /res*.png
 .Rproj.user
 .Rhistory
 mmbeddings.Rproj
+*.zip
+~$*.xlsx

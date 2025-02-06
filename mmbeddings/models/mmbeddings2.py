@@ -59,7 +59,7 @@ class MmbeddingsEncoder(Model):
             mmbeddings_log_var_list.append(mmbeddings_log_var)
             mmbeddings = self.sampling([mmbeddings_mean, mmbeddings_log_var])
             mmbeddings_list.append(mmbeddings)
-        return mmbeddings_mean_list, mmbeddings_log_var_list, mmbeddings_list, Z_mats
+        return mmbeddings_mean_list, mmbeddings_log_var_list, mmbeddings_list
 
 class MmbeddingsDecoder(Layer):
     """"""
@@ -77,10 +77,14 @@ class MmbeddingsDecoder(Layer):
         self.concat = Concatenate()
         self.dense_output = Dense(1)
 
-    def call(self, X_input, Z_mats, mmbeddings_list):
+    def call(self, X_input, Z_inputs, mmbeddings_list):
         ZB_list = []
         for i in range(self.n_RE_inputs):
-            Z = Z_mats[i]
+            Z_input = Z_inputs[i]
+            if version.parse(tf.__version__) >= version.parse('2.8'):
+                Z = CategoryEncoding(num_tokens=self.qs[i], output_mode='one_hot')(Z_input)
+            else:
+                Z = CategoryEncoding(max_tokens=self.qs[i], output_mode='binary')(Z_input)
             B = mmbeddings_list[i]
             ZB = K.dot(Z, B)
             ZB_list.append(ZB)
@@ -172,8 +176,9 @@ class MmbeddingsVAE2(Model):
         """
         X_input = inputs[0]
         y_input = inputs[1]
-        mmbeddings_mean_list, mmbeddings_log_var_list, mmbeddings_list, Z_mats = self.encoder(inputs)
-        output = self.decoder(X_input, Z_mats, mmbeddings_list)
+        Z_inputs = inputs[2:]
+        mmbeddings_mean_list, mmbeddings_log_var_list, mmbeddings_list = self.encoder(inputs)
+        output = self.decoder(X_input, Z_inputs, mmbeddings_list)
 
         self.add_loss_and_metrics(y_input, output, mmbeddings_mean_list, mmbeddings_log_var_list)
         return output
@@ -197,15 +202,15 @@ class MmbeddingsVAE2(Model):
         self.add_metric(squared_loss, name='squared_loss')
         self.add_metric(re_kl_loss, name='re_kl_loss')
     
-    def fit_model(self, X_train, Z_train, y_train):
+    def fit_model(self, X_train, Z_train, y_train, shuffle=True):
         history = self.fit([X_train] + [y_train] + Z_train, y_train,
                            epochs=self.exp_in.epochs, callbacks=self.callbacks,
                            batch_size=self.exp_in.batch, validation_split=0.1,
-                           verbose=self.exp_in.verbose)
+                           verbose=self.exp_in.verbose, shuffle=shuffle)
         return history
     
     def predict_embeddings(self, X_train, Z_train, y_train):
-        _, _, mmbeddings_list, _ = self.encoder.predict([X_train] + [y_train] + Z_train, verbose=self.exp_in.verbose, batch_size=100000)
+        _, _, mmbeddings_list = self.encoder.predict([X_train] + [y_train] + Z_train, verbose=self.exp_in.verbose, batch_size=100000)
         sig2bs_hat_list = [mmbeddings_list[i].var(axis=0) for i in range(len(mmbeddings_list))]
         return mmbeddings_list, sig2bs_hat_list
     

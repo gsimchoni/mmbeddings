@@ -103,11 +103,11 @@ class RegbeddingsMLP(Model):
         self.add_metric(squared_loss, name='squared_loss')
         self.add_metric(re_kl_loss, name='re_kl_loss')
     
-    def fit_model(self, X_train, Z_train, y_train):
+    def fit_model(self, X_train, Z_train, y_train, shuffle=True):
         history = self.fit([X_train] + [y_train] + Z_train, y_train,
                            epochs=self.exp_in.epochs, callbacks=self.callbacks,
                            batch_size=self.exp_in.batch, validation_split=0.1,
-                           verbose=self.exp_in.verbose)
+                           verbose=self.exp_in.verbose, shuffle=shuffle)
         return history
     
     def predict_embeddings(self, X_train, Z_train, y_train):

@@ -27,13 +27,13 @@ Z_embed_dim_pct: 10
 batch: 100
 epochs: 500
 patience:
-verbose: True
+verbose: False
 log_params: False
 pred_unknown_clusters: False
 RE_cols_prefix: 'z'
 re_sig2b_prior: 1.0
 beta_vae_list:
-  - 0.01
+  - 0.001
 exp_types:
   - 'ignore'
   - 'ohe'

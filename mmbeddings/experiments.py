@@ -4,7 +4,7 @@ import pandas as pd
 from mmbeddings.models.lmmnn.lmmnn import run_lmmnn
 from mmbeddings.models.mlp import MLP
 from mmbeddings.models.embeddings import EmbeddingsMLP
-from mmbeddings.models.mmbeddings import MmbeddingsVAE
+from mmbeddings.models.mmbeddings import MmbeddingsDecoderPostTraining, MmbeddingsVAE
 from mmbeddings.models.mmbeddings2 import MmbeddingsVAE2
 from mmbeddings.models.regbeddings import RegbeddingsMLP
 from mmbeddings.utils import ExpResult
@@ -139,6 +139,7 @@ class REbeddings(Experiment):
         super().__init__(exp_in, REbeddings_type, REbeddings)
         self.growth_model = growth_model
         self.RE_cols = self.get_RE_cols_by_prefix(self.X_train, self.exp_in.RE_cols_prefix)
+        self.diverse_batches = False
         if REbeddings_type == 'mmbeddings':
             self.model_class = MmbeddingsVAE
         elif REbeddings_type == 'regbeddings':
@@ -148,12 +149,22 @@ class REbeddings(Experiment):
     
     def run(self):
         start = time.time()
+        if self.diverse_batches:
+            self.diversify_batches()
         X_train, Z_train, X_test, Z_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
         model = self.model_class(self.exp_in, input_dim, self.growth_model)
         model.compile(optimizer='adam')
-        history = model.fit_model(X_train, Z_train, self.y_train)
+        history = model.fit_model(X_train, Z_train, self.y_train, shuffle=not self.diverse_batches)
         embeddings_list, sig2bs_hat_list = model.predict_embeddings(X_train, Z_train, self.y_train)
+        if self.exp_type == 'mmbeddings':
+            # uncomment to see the difference in test MSE when adding decoder post training
+            # y_pred0 = model.predict_model(X_test, Z_test, embeddings_list)
+            # mse0 = np.mean((self.y_test - y_pred0) ** 2)
+            embeddings_list_processed = model.replicate_Bs_to_predict(Z_train, embeddings_list)
+            model_post_trainer = MmbeddingsDecoderPostTraining(self.exp_in, model.decoder, self.exp_type)
+            model_post_trainer.compile(optimizer='adam', loss='mse')
+            model_post_trainer.fit_model(X_train, Z_train, embeddings_list_processed, self.y_train)
         y_pred = model.predict_model(X_test, Z_test, embeddings_list)
         losses_tr = model.evaluate_model(X_train, Z_train, self.y_train)
         losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
@@ -161,6 +172,8 @@ class REbeddings(Experiment):
         runtime = end - start
         mse, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
         frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
+        if self.diverse_batches:
+            self.undiversify_batches()
         self.exp_res = ExpResult(mse, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
     def prepare_input_data(self):
@@ -176,6 +189,22 @@ class REbeddings(Experiment):
         X_train = X[self.exp_in.x_cols].copy()
         Z_train = [X[RE_col].copy() for RE_col in self.RE_cols]
         return X_train, Z_train
+    
+    def diversify_batches(self):
+        self.orig_idx_train = self.X_train.index
+        self.X_train['idx'] = self.X_train.index
+        grouped = self.X_train.groupby(self.RE_cols)
+        interleaved_indices = []
+        max_cluster_size = max(grouped.size())
+        for i in range(max_cluster_size):
+            sampled = grouped.nth(i).dropna()  # Take the i-th element from each cluster if available
+            interleaved_indices.extend(sampled['idx'].tolist())
+        self.X_train = self.X_train.loc[interleaved_indices].drop(columns=['idx'])
+        self.y_train = self.y_train.reindex(self.X_train.index)
+
+    def undiversify_batches(self):
+        self.X_train = self.X_train.reindex(self.orig_idx_train)
+        self.y_train = self.y_train.reindex(self.orig_idx_train)
 
 
 class LMMNN(Experiment):

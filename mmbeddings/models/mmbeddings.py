@@ -51,7 +51,7 @@ class MmbeddingsEncoder(Model):
             mmbeddings_list.append(mmbeddings)
         return mmbeddings_mean_list, mmbeddings_log_var_list, mmbeddings_list
 
-class MmbeddingsDecoder(Layer):
+class MmbeddingsDecoder(Model):
     """"""
 
     def __init__(self, exp_in, input_dim, name="decoder", **kwargs):
@@ -204,11 +204,11 @@ class MmbeddingsVAE(Model):
         self.add_metric(squared_loss, name='squared_loss')
         self.add_metric(re_kl_loss, name='re_kl_loss')
     
-    def fit_model(self, X_train, Z_train, y_train):
+    def fit_model(self, X_train, Z_train, y_train, shuffle=True):
         history = self.fit([X_train] + [y_train] + Z_train, y_train,
                            epochs=self.exp_in.epochs, callbacks=self.callbacks,
                            batch_size=self.exp_in.batch, validation_split=0.1,
-                           verbose=self.exp_in.verbose)
+                           verbose=self.exp_in.verbose, shuffle=shuffle)
         return history
     
     def predict_embeddings(self, X_train, Z_train, y_train):
@@ -254,3 +254,28 @@ class MmbeddingsVAE(Model):
     def evaluate_model(self, X, Z, y):
         total_loss, squared_loss, re_kl_loss = self.evaluate([X] + [y] + Z, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)
         return total_loss, squared_loss, re_kl_loss
+    
+class MmbeddingsDecoderPostTraining(Model):
+    def __init__(self, exp_in, decoder, exp_type):
+        super(MmbeddingsDecoderPostTraining, self).__init__()
+        self.exp_in = exp_in
+        self.decoder = decoder
+        self.exp_type = exp_type
+        self.callbacks = [EarlyStopping(
+            monitor='val_loss', patience=5)]
+    
+    def call(self, inputs):
+        X_input = inputs[0]
+        mmbeddings_list = inputs[1]
+        Z_inputs = inputs[2:]
+        output = self.decoder(X_input, Z_inputs, mmbeddings_list)
+        if self.exp_type == 'mmbeddings':
+            output = output[0]
+        return output
+    
+    def fit_model(self, X_train, Z_train, embeddings_list_processed, y_train):
+        self.fit([X_train] + [embeddings_list_processed] + Z_train,
+                 y_train, verbose=self.exp_in.verbose,
+                 batch_size=self.exp_in.batch, epochs=self.exp_in.epochs,
+                 callbacks=self.callbacks, validation_split=0.1)
+        
