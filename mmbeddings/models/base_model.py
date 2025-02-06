@@ -20,15 +20,16 @@ class BaseModel:
         return history
     
     def predict(self, X_test):
-        y_pred = self.model.predict(X_test, verbose=self.exp_in.verbose).reshape(-1)
+        y_pred = self.model.predict(X_test, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch).reshape(-1)
         return y_pred
     
     def summarize(self, y_test, y_pred, history):
         mse = np.mean((y_test - y_pred) ** 2)
-        sigmas = (None, [None for _ in range(self.exp_in.n_sig2bs)])
-        nll_tr, nll_te = None, None
+        sigmas = (np.nan, [np.nan for _ in range(self.exp_in.n_sig2bs)])
+        nll_tr, nll_te = np.nan, np.nan
         n_epochs = len(history.history['loss'])
-        return mse, sigmas, nll_tr, nll_te, n_epochs
+        n_params = self.model.count_params()
+        return mse, sigmas, nll_tr, nll_te, n_epochs, n_params
     
     def add_layers_sequential(self, input_dim):
         n_neurons = self.exp_in.n_neurons

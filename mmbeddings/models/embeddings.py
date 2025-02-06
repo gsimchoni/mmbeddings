@@ -74,8 +74,8 @@ class EmbeddingsMLP(Model):
         super(EmbeddingsMLP, self).__init__()
         self.exp_in = exp_in
         self.input_dim = input_dim
-        self.callbacks = [EarlyStopping(
-            monitor='val_loss', patience=self.exp_in.epochs if self.exp_in.patience is None else self.exp_in.patience)]
+        self.callbacks = [EarlyStopping(monitor='val_loss', patience=10)]
+        # self.callbacks = [EarlyStopping(monitor='val_loss', patience=self.exp_in.epochs if self.exp_in.patience is None else self.exp_in.patience)]
         self.encoder = EmbeddingsEncoder(self.exp_in.qs, self.exp_in.d)
         if growth_model:
             self.decoder = EmbeddingsDecoderGrowthModel()
@@ -99,9 +99,11 @@ class EmbeddingsMLP(Model):
                            verbose=self.exp_in.verbose)
         return history
     
-    def summarize(self, y_test, y_pred, history):
+    def summarize(self, y_test, y_pred, history, sig2bs_hat_list):
         mse = np.mean((y_test - y_pred.reshape(-1)) ** 2)
-        sigmas = (None, [None for _ in range(self.exp_in.n_sig2bs)])
-        nll_tr, nll_te = None, None
+        sig2bs_mean_est = [np.mean(sig2bs) for sig2bs in sig2bs_hat_list]
+        sigmas = [np.nan, sig2bs_mean_est]
+        nll_tr, nll_te = np.nan, np.nan
         n_epochs = len(history.history['loss'])
-        return mse, sigmas, nll_tr, nll_te, n_epochs
+        n_params = self.count_params()
+        return mse, sigmas, nll_tr, nll_te, n_epochs, n_params

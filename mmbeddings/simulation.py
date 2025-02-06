@@ -24,7 +24,7 @@ class Simulation:
         self.qs_names =  list(map(lambda x: 'q' + str(x), range(self.n_categorical)))
         self.sig2bs_names =  list(map(lambda x: 'sig2b' + str(x), range(self.n_sig2bs)))
         self.sig2bs_est_names =  list(map(lambda x: 'sig2b_est' + str(x), range(self.n_sig2bs)))
-        self.test_size = params.get('test_size', 0.2)
+        self.n_test = params.get('n_test', 10000)
         self.pred_unknown_clusters = params.get('pred_unknown_clusters', False)
         self.exp_types = params['exp_types']
         self.verbose = params.get('verbose', False)
@@ -36,21 +36,52 @@ class Simulation:
         # Create an empty results DataFrame
         self.res_df = self.create_res_df()
 
-        for N in self.params['N_list']:
+        for n_train in self.params['n_train_list']:
             for sig2e in self.params['sig2e_list']:
                 for qs in product(*self.params['q_list']):
                     for sig2bs in product(*self.params['sig2b_list']):
-                        self.logger.info(f'N: {N}, test: {self.test_size:.2f}, qs: {", ".join(map(str, qs))}, '
-                                                f'sig2e: {sig2e}, '
-                                                f'sig2bs_mean: {", ".join(map(str, sig2bs))}')
-                        for k in range(self.n_iter):
-                            self.logger.info(f'Iteration {k + 1}/{self.n_iter}')
-                            simulator = DataSimulator(qs, sig2e, sig2bs, N, self.test_size, self.pred_unknown_clusters, self.params)
-                            exp_data = simulator.generate_data()
-                            self.exp_in = ExperimentInput(exp_data, N, self.test_size, self.pred_unknown_clusters, qs, self.d,
-                                                     sig2e, sig2bs, k, self.n_sig2bs, self.params).get()
-                            self.iterate_experiment_types()
+                        for beta_vae in self.params['beta_vae_list']:
+                            self.params['beta_vae'] = beta_vae
+                            self.logger.info(f'n_train: {n_train}, qs: {", ".join(map(str, qs))}, '
+                                                    f'sig2e: {sig2e}, '
+                                                    f'sig2bs_mean: {", ".join(map(str, sig2bs))}, '
+                                                    f'beta_vae: {beta_vae}')
+                            for k in range(self.n_iter):
+                                self.logger.info(f'Iteration {k + 1}/{self.n_iter}')
+                                simulator = DataSimulator(qs, sig2e, sig2bs, n_train, self.n_test, self.pred_unknown_clusters, self.params)
+                                exp_data = simulator.generate_data()
+                                self.exp_in = ExperimentInput(exp_data, n_train, self.n_test, self.pred_unknown_clusters, qs, self.d,
+                                                        sig2e, sig2bs, k, self.n_sig2bs, self.params).get()
+                                self.iterate_experiment_types()
 
+    def get_dtype_dict(self):
+        dtype_dict = {
+            'n_train': 'int64',
+            'n_test': 'int64',
+            'batch': 'int64',
+            'pred_unknown': 'bool',
+            'sig2e': 'float64',
+            'beta': 'float64',
+            'experiment': 'int64',
+            'exp_type': 'object',
+            'mse': 'float64',
+            'frobenius': 'float64',
+            'spearman': 'float64',
+            'nrmse': 'float64',
+            'sig2e_est': 'float64',
+            'nll_train': 'float64',
+            'nll_test': 'float64',
+            'n_epochs': 'int64',
+            'time': 'float64',
+            'n_params': 'int64'
+        }
+        for k in self.sig2bs_names + self.sig2bs_est_names:
+            dtype_dict[k] = 'float64'
+
+        for k in self.qs_names:
+            dtype_dict[k] = 'int64'
+        return dtype_dict
+    
     def create_res_df(self):
         """
         Create an empty simulation results DataFrame.
@@ -58,11 +89,13 @@ class Simulation:
         Returns:
         pd.DataFrame - An empty DataFrame for storing simulation results.
         """
-        res_df = pd.DataFrame(columns=['N', 'test_size', 'batch', 'pred_unknown', 'sig2e'] +\
+        res_df = pd.DataFrame(columns=['n_train', 'n_test', 'batch', 'pred_unknown', 'sig2e', 'beta'] +\
                               self.sig2bs_names + self.qs_names +\
-                                ['experiment', 'exp_type', 'mse', 'sig2e_est'] +\
+                                ['experiment', 'exp_type', 'mse', 'frobenius', 'spearman', 'nrmse', 'sig2e_est'] +\
                                     self.sig2bs_est_names +\
-                                        ['nll_train', 'nll_test'] + ['n_epochs', 'time'])
+                                        ['nll_train', 'nll_test', 'n_epochs', 'time', 'n_params'])
+        dtype_dict = self.get_dtype_dict()
+        res_df = res_df.astype(dtype_dict)
         return res_df
     
     def get_experiment(self, exp_type):
@@ -88,6 +121,8 @@ class Simulation:
             experiment = REbeddings(self.exp_in, REbeddings_type='regbeddings', growth_model=True)
         elif exp_type == 'lmmnn':
             experiment = LMMNN(self.exp_in)
+        elif exp_type == 'mmbeddings-v2':
+            experiment = REbeddings(self.exp_in, REbeddings_type='mmbeddings-v2')
         else:
             raise NotImplementedError(f'{exp_type} experiment not implemented.')
         return experiment
