@@ -2,6 +2,9 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from scipy.stats import spearmanr
 
+def upper_triangular_values(D):
+    return D[np.triu_indices_from(D, k=1)]
+
 def frobenius_distance(true_embed_list, pred_embed_list):
     frob_distances = []
     for X_true, X_pred in zip(true_embed_list, pred_embed_list):
@@ -18,8 +21,8 @@ def spearman_rank_correlation(true_embed_list, pred_embed_list, sample_size=1000
         D_pred = cdist(X_pred, X_pred, metric='euclidean')
 
         # Flatten the matrices
-        D_true_flat = D_true.flatten()
-        D_pred_flat = D_pred.flatten()
+        D_true_flat = upper_triangular_values(D_true).flatten()
+        D_pred_flat = upper_triangular_values(D_pred).flatten()
 
         # Randomly sample indices
         if sample_size < len(D_true_flat):
@@ -39,7 +42,8 @@ def normalized_rmse(true_embed_list, pred_embed_list):
     for X_true, X_pred in zip(true_embed_list, pred_embed_list):
         D_true = cdist(X_true, X_true, metric='euclidean')
         D_pred = cdist(X_pred, X_pred, metric='euclidean')
-        mse = np.mean((D_true - D_pred) ** 2)
+        diff = upper_triangular_values(D_true - D_pred)
+        mse = np.mean(diff ** 2)
         norm_factor = np.max(D_true) - np.min(D_true)
         nrmse = np.sqrt(mse) / norm_factor if norm_factor > 0 else np.sqrt(mse)
         nrmse_values.append(nrmse)
