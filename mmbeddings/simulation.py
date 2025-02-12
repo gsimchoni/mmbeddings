@@ -54,7 +54,7 @@ class Simulation:
                                                         sig2e, sig2bs, k, self.n_sig2bs, self.params).get()
                                 self.iterate_experiment_types()
 
-    def get_dtype_dict(self):
+    def get_dtype_dict(self, metric):
         dtype_dict = {
             'n_train': 'int64',
             'n_test': 'int64',
@@ -64,7 +64,7 @@ class Simulation:
             'beta': 'float64',
             'experiment': 'int64',
             'exp_type': 'object',
-            'mse': 'float64',
+            metric: 'float64',
             'frobenius': 'float64',
             'spearman': 'float64',
             'nrmse': 'float64',
@@ -89,12 +89,19 @@ class Simulation:
         Returns:
         pd.DataFrame - An empty DataFrame for storing simulation results.
         """
+        y_type = self.params.get('y_type', 'continuous')
+        if y_type == 'continuous':
+            metric = 'mse'
+        elif y_type == 'binary':
+            metric = 'auc'
+        else:
+            raise ValueError(f'Unsupported y_type: {y_type}')
         res_df = pd.DataFrame(columns=['n_train', 'n_test', 'batch', 'pred_unknown', 'sig2e', 'beta'] +\
                               self.sig2bs_names + self.qs_names +\
-                                ['experiment', 'exp_type', 'mse', 'frobenius', 'spearman', 'nrmse', 'sig2e_est'] +\
+                                ['experiment', 'exp_type', metric, 'frobenius', 'spearman', 'nrmse', 'sig2e_est'] +\
                                     self.sig2bs_est_names +\
                                         ['nll_train', 'nll_test', 'n_epochs', 'time', 'n_params'])
-        dtype_dict = self.get_dtype_dict()
+        dtype_dict = self.get_dtype_dict(metric)
         res_df = res_df.astype(dtype_dict)
         return res_df
     

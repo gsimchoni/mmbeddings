@@ -30,6 +30,7 @@ class DataSimulator:
         self.sig2bs_identical = params.get('sig2bs_identical', False)
         self.d = params.get('d', 10)
         self.n_per_cat = params.get('n_per_cat', 30)
+        self.y_type = params.get('y_type', 'continuous')
 
     def generate_data(self):
         """Generate the simulated dataset."""
@@ -114,9 +115,16 @@ class DataSimulator:
         # Ensure noise is reshaped to (N, 1) for consistency
         noise = noise.reshape(-1, 1) if noise.ndim == 1 else noise
 
-        # Combine the non-linear term with noise
-        y = non_linear_term + noise
-        # y = np.maximum(0.01, y) # uncomment this line to add a lower bound to the response in a growth model
+        if self.y_type == 'continuous':
+            # Combine the non-linear term with noise
+            y = non_linear_term + noise
+            # y = np.maximum(0.01, y) # uncomment this line to add a lower bound to the response in a growth model
+        elif self.y_type == 'binary':
+            y = non_linear_term.flatten()
+            p = np.exp(y)/(1 + np.exp(y))
+            y = np.random.binomial(1, p, size=len(y)).astype(float)
+        else:
+            raise ValueError(f'Unsupported y_type: {self.y_type}')
 
         return y
 
@@ -174,7 +182,7 @@ class ExperimentInput:
     def get(self):
         """Return an ExpInput namedtuple."""
         return ExpInput(*self.exp_data, self.n_train, self.n_test, self.pred_unknown_clusters, self.qs, self.d, self.sig2e,
-                        self.sig2bs, self.k, self.params['batch'], self.params['epochs'], self.params['patience'],
+                        self.sig2bs, self.params['y_type'], self.k, self.params['batch'], self.params['epochs'], self.params['patience'],
                         self.params['Z_embed_dim_pct'], self.n_sig2bs, self.params['verbose'], self.params['n_neurons'],
                         self.params['dropout'], self.params['activation'], self.params['RE_cols_prefix'],
                         self.params['re_sig2b_prior'], self.params['beta_vae'], self.params['log_params'])

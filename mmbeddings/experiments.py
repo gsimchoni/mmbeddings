@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import pandas as pd
+from sklearn.metrics import roc_auc_score
 from mmbeddings.models.lmmnn.lmmnn import run_lmmnn
 from mmbeddings.models.mlp import MLP
 from mmbeddings.models.embeddings import EmbeddingsMLP
@@ -27,6 +28,14 @@ class Experiment:
         self.y_test = exp_in.y_test
         self.n_sig2bs = exp_in.n_sig2bs
         self.model_class = ModelClass
+        if self.exp_in.y_type == 'continuous':
+            self.loss = 'mse'
+            self.last_layer_activation = 'linear'
+        elif self.exp_in.y_type == 'binary':
+            self.loss = 'binary_crossentropy'
+            self.last_layer_activation = 'sigmoid'
+        else:
+            raise ValueError(f'Unsupported y_type: {self.y_type}')
     
     def run(self):
         """
@@ -35,15 +44,15 @@ class Experiment:
         start = time.time()
         X_train, X_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
-        model = self.model_class(self.exp_in, input_dim)
+        model = self.model_class(self.exp_in, input_dim, self.loss, self.last_layer_activation)
         model.build()
         history = model.fit(X_train, self.y_train)
         y_pred = model.predict(X_test)
         end = time.time()
         runtime = end - start
-        mse, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history)
+        metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history)
         frobenius, spearman, nrmse = np.nan, np.nan, np.nan
-        self.exp_res = ExpResult(mse, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
+        self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
     def summarize(self):
         """
@@ -52,7 +61,7 @@ class Experiment:
         res_summary = [self.exp_in.n_train, self.exp_in.n_test, self.exp_in.batch] +\
             [self.exp_in.pred_unknown, self.exp_in.sig2e, self.exp_in.beta_vae] +\
             list(self.exp_in.sig2bs) + list(self.exp_in.qs) +\
-            [self.exp_in.k, self.exp_type, self.exp_res.mse] +\
+            [self.exp_in.k, self.exp_type, self.exp_res.metric] +\
             [self.exp_res.frobenius, self.exp_res.spearman, self.exp_res.nrmse, self.exp_res.sigmas[0]] +\
             self.exp_res.sigmas[1] + [self.exp_res.nll_tr, self.exp_res.nll_te] + \
                 [self.exp_res.n_epochs, self.exp_res.time, self.exp_res.n_params]
@@ -121,17 +130,17 @@ class Embeddings(Experiment):
         start = time.time()
         X_train, X_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
-        model = EmbeddingsMLP(self.exp_in, input_dim, self.growth_model)
-        model.compile(loss='mse', optimizer='adam')
+        model = EmbeddingsMLP(self.exp_in, input_dim, self.last_layer_activation, self.growth_model)
+        model.compile(loss=self.loss, optimizer='adam')
         history = model.fit_model(X_train, self.y_train)
         embeddings_list = [embed.get_weights()[0] for embed in model.encoder.embeddings]
         sig2bs_hat_list = [embeddings_list[i].var(axis=0) for i in range(len(embeddings_list))]
         y_pred = model.predict(X_test, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)
         end = time.time()
         runtime = end - start
-        mse, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
+        metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
         frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
-        self.exp_res = ExpResult(mse, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
+        self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
 
 class REbeddings(Experiment):
@@ -153,7 +162,7 @@ class REbeddings(Experiment):
             self.diversify_batches()
         X_train, Z_train, X_test, Z_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
-        model = self.model_class(self.exp_in, input_dim, self.growth_model)
+        model = self.model_class(self.exp_in, input_dim, self.last_layer_activation, self.growth_model)
         model.compile(optimizer='adam')
         history = model.fit_model(X_train, Z_train, self.y_train, shuffle=not self.diverse_batches)
         embeddings_list, sig2bs_hat_list = model.predict_embeddings(X_train, Z_train, self.y_train)
@@ -170,11 +179,11 @@ class REbeddings(Experiment):
         losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
         end = time.time()
         runtime = end - start
-        mse, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
+        metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
         frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
         if self.diverse_batches:
             self.undiversify_batches()
-        self.exp_res = ExpResult(mse, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
+        self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
     def prepare_input_data(self):
         X_train, Z_train = self.prepare_input_data_single_set(self.X_train)
@@ -225,14 +234,19 @@ class LMMNN(Experiment):
             self.exp_in.k, shuffle, sample_n_train, self.exp_in.B_true_list)
         end = time.time()
         runtime = end - start
-        mse = np.mean((y_pred - self.y_test)**2)
+        if y_type == 'continuous':
+            metric = np.mean((y_pred - self.y_test)**2)
+        elif y_type == 'binary':
+            metric = roc_auc_score(self.y_test, y_pred)
+        else:
+            raise ValueError(f'Unsupported y_type: {y_type}')
         frobenius, spearman, nrmse = np.nan, np.nan, np.nan
-        self.exp_res = ExpResult(mse, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
+        self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
     def get_init_vals(self):
         q_spatial = None
         mode = 'categorical'
-        y_type = 'continuous'
+        y_type = self.exp_in.y_type
         n_sig2bs_spatial = 0
         est_cors = []
         dist_matrix = None

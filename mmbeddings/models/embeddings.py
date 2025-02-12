@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.metrics import roc_auc_score
 import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers import Concatenate, Dense, Embedding, Layer, Reshape
@@ -32,7 +33,7 @@ class EmbeddingsEncoder(Layer):
 class EmbeddingsDecoder(Layer):
     """"""
 
-    def __init__(self, exp_in, input_dim, name="decoder", **kwargs):
+    def __init__(self, exp_in, input_dim, last_layer_activation, name="decoder", **kwargs):
         super().__init__(name=name, **kwargs)
         self.exp_in = exp_in
         self.input_dim = input_dim
@@ -40,7 +41,7 @@ class EmbeddingsDecoder(Layer):
         self.nn = build_coder(self.concat_input_dim, self.exp_in.n_neurons,
                               self.exp_in.dropout, self.exp_in.activation)
         self.concat = Concatenate()
-        self.dense_output = Dense(1)
+        self.dense_output = Dense(1, activation=last_layer_activation)
 
     def call(self, X_input, embeds):
         concat = self.concat([X_input] + embeds)
@@ -67,7 +68,7 @@ class EmbeddingsDecoderGrowthModel(Layer):
 
 
 class EmbeddingsMLP(Model):
-    def __init__(self, exp_in, input_dim, growth_model=False):
+    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model=False):
         """
         Multi-layer perceptron model with embeddings.
         """
@@ -80,7 +81,7 @@ class EmbeddingsMLP(Model):
         if growth_model:
             self.decoder = EmbeddingsDecoderGrowthModel()
         else:
-            self.decoder = EmbeddingsDecoder(self.exp_in, self.input_dim)
+            self.decoder = EmbeddingsDecoder(self.exp_in, self.input_dim, last_layer_activation)
             
     def call(self, inputs):
         """
@@ -100,10 +101,15 @@ class EmbeddingsMLP(Model):
         return history
     
     def summarize(self, y_test, y_pred, history, sig2bs_hat_list):
-        mse = np.mean((y_test - y_pred.reshape(-1)) ** 2)
+        if self.exp_in.y_type == 'continuous':
+            metric = np.mean((y_test - y_pred.reshape(-1)) ** 2)
+        elif self.exp_in.y_type == 'binary':
+            metric = roc_auc_score(y_test, y_pred)
+        else:
+            raise ValueError(f'Unsupported y_type: {self.exp_in.y_type}')
         sig2bs_mean_est = [np.mean(sig2bs) for sig2bs in sig2bs_hat_list]
         sigmas = [np.nan, sig2bs_mean_est]
         nll_tr, nll_te = np.nan, np.nan
         n_epochs = len(history.history['loss'])
         n_params = self.count_params()
-        return mse, sigmas, nll_tr, nll_te, n_epochs, n_params
+        return metric, sigmas, nll_tr, nll_te, n_epochs, n_params

@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.metrics import roc_auc_score
 from tensorflow.keras.layers import Dense, Dropout
 
 
@@ -24,12 +25,17 @@ class BaseModel:
         return y_pred
     
     def summarize(self, y_test, y_pred, history):
-        mse = np.mean((y_test - y_pred) ** 2)
+        if self.exp_in.y_type == 'continuous':
+            metric = np.mean((y_test - y_pred) ** 2)
+        elif self.exp_in.y_type == 'binary':
+            metric = roc_auc_score(y_test, y_pred)
+        else:
+            raise ValueError(f'Unsupported y_type: {self.exp_in.y_type}')
         sigmas = (np.nan, [np.nan for _ in range(self.exp_in.n_sig2bs)])
         nll_tr, nll_te = np.nan, np.nan
         n_epochs = len(history.history['loss'])
         n_params = self.model.count_params()
-        return mse, sigmas, nll_tr, nll_te, n_epochs, n_params
+        return metric, sigmas, nll_tr, nll_te, n_epochs, n_params
     
     def add_layers_sequential(self, input_dim):
         n_neurons = self.exp_in.n_neurons

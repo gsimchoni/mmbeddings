@@ -1,3 +1,4 @@
+y_type: 'continuous'
 n_train_list:
   - 10000
 n_test: 10000

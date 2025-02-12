@@ -3,13 +3,13 @@ from collections import namedtuple
 import numpy as np
 import scipy.sparse as sparse
 
-ExpResult = namedtuple('ExpResult', ['mse', 'frobenius', 'spearman', 'nrmse', 'sigmas', 'nll_tr', 'nll_te', 'n_epochs', 'time', 'n_params'])
+ExpResult = namedtuple('ExpResult', ['metric', 'frobenius', 'spearman', 'nrmse', 'sigmas', 'nll_tr', 'nll_te', 'n_epochs', 'time', 'n_params'])
 
 ExpData = namedtuple('ExpData', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols', 'B_true_list'])
 
 ExpInput = namedtuple('ExpInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_cols', 'B_true_list',
                                    'n_train', 'n_test', 'pred_unknown', 'qs', 'd', 'sig2e',
-                                   'sig2bs', 'k', 'batch', 'epochs', 'patience',
+                                   'sig2bs', 'y_type', 'k', 'batch', 'epochs', 'patience',
                                    'Z_embed_dim_pct', 'n_sig2bs', 'verbose',
                                    'n_neurons', 'dropout', 'activation', 'RE_cols_prefix',
                                    're_sig2b_prior', 'beta_vae', 'log_params',

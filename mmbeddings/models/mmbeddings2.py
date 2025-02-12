@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from sklearn.metrics import roc_auc_score
 from tensorflow.keras.layers import Concatenate, Dense, Layer
 from tensorflow.keras.models import Model
 from packaging import version
@@ -7,7 +8,7 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers.experimental.preprocessing import CategoryEncoding
-from tensorflow.keras.losses import MeanSquaredError
+from tensorflow.keras.losses import MeanSquaredError, BinaryCrossentropy
 
 from mmbeddings.models.utils import Sampling, build_coder
 
@@ -64,7 +65,7 @@ class MmbeddingsEncoder(Model):
 class MmbeddingsDecoder(Layer):
     """"""
 
-    def __init__(self, exp_in, input_dim, name="decoder", **kwargs):
+    def __init__(self, exp_in, input_dim, last_layer_activation, name="decoder", **kwargs):
         super().__init__(name=name, **kwargs)
         self.exp_in = exp_in
         self.input_dim = input_dim
@@ -75,7 +76,7 @@ class MmbeddingsDecoder(Layer):
         self.nn = build_coder(input_dim, self.n_neurons, self.dropout, self.exp_in.activation)
         # self.nn = build_coder(input_dim, [100, 50, 25, 12], [0.25, 0.25, 0.25], self.exp_in.activation)
         self.concat = Concatenate()
-        self.dense_output = Dense(1)
+        self.dense_output = Dense(1, activation=last_layer_activation)
 
     def call(self, X_input, Z_inputs, mmbeddings_list):
         ZB_list = []
@@ -104,7 +105,7 @@ class MmbeddingsDecoder(Layer):
 class MmbeddingsDecoderGrowthModel(Layer):
     """"""
 
-    def __init__(self, exp_in, input_dim, name="decoder", **kwargs):
+    def __init__(self, exp_in, input_dim, last_layer_activation, name="decoder", **kwargs):
         super().__init__(name=name, **kwargs)
         self.exp_in = exp_in
         self.input_dim = input_dim
@@ -148,7 +149,7 @@ class MmbeddingsDecoderGrowthModel(Layer):
 
 
 class MmbeddingsVAE2(Model):
-    def __init__(self, exp_in, input_dim, growth_model=False):
+    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model=False):
         """
         MLP-based VAE model for mmbeddings.
         """
@@ -164,7 +165,7 @@ class MmbeddingsVAE2(Model):
         self.qs = self.exp_in.qs
         self.n_RE_inputs = len(self.exp_in.qs)
         decoder_input_dim = self.input_dim + self.d * self.n_RE_inputs
-        self.decoder = decoder_class(exp_in, decoder_input_dim)
+        self.decoder = decoder_class(exp_in, decoder_input_dim, last_layer_activation)
         self.re_log_sig2b_prior = tf.constant(np.log(self.exp_in.re_sig2b_prior, dtype=np.float32))
         self.beta = self.exp_in.beta_vae
         self.callbacks = [EarlyStopping(
@@ -196,10 +197,15 @@ class MmbeddingsVAE2(Model):
                 re_kl_loss = re_kl_loss_i
             else:
                 re_kl_loss += re_kl_loss_i
-            squared_loss = 0.5 * K.sum(K.square(y_input - y_pred)) / self.exp_in.batch
+        if self.exp_in.y_type == 'continuous':
+            log_lik = 0.5 * MeanSquaredError()(y_input, y_pred)
+        elif self.exp_in.y_type == 'binary':
+            log_lik = BinaryCrossentropy()(y_input, y_pred)
+        else:
+            raise ValueError(f'Unsupported y_type: {self.exp_in.y_type}')
         self.add_loss(self.beta * re_kl_loss)
-        self.add_loss(squared_loss)
-        self.add_metric(squared_loss, name='squared_loss')
+        self.add_loss(log_lik)
+        self.add_metric(log_lik, name='log_loss')
         self.add_metric(re_kl_loss, name='re_kl_loss')
     
     def fit_model(self, X_train, Z_train, y_train, shuffle=True):
@@ -240,13 +246,18 @@ class MmbeddingsVAE2(Model):
         return B_hat_list_processed
 
     def summarize(self, y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history):
-        mse = np.mean((y_test - y_pred) ** 2)
+        if self.exp_in.y_type == 'continuous':
+            metric = np.mean((y_test - y_pred) ** 2)
+        elif self.exp_in.y_type == 'binary':
+            metric = roc_auc_score(y_test, y_pred)
+        else:
+            raise ValueError(f'Unsupported y_type: {self.exp_in.y_type}')
         sig2bs_mean_est = [np.mean(sig2bs) for sig2bs in sig2bs_hat_list]
         sigmas = [np.nan, sig2bs_mean_est]
         nll_tr, nll_te = losses_tr[0], losses_te[0]
         n_epochs = len(history.history['loss'])
         n_params = self.count_params()
-        return mse, sigmas, nll_tr, nll_te, n_epochs, n_params
+        return metric, sigmas, nll_tr, nll_te, n_epochs, n_params
     
     def evaluate_model(self, X, Z, y):
         total_loss, squared_loss, re_kl_loss = self.evaluate([X] + [y] + Z, verbose=self.exp_in.verbose, batch_size=100000)
