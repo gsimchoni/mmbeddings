@@ -1,9 +1,10 @@
 import numpy as np
+from sklearn.metrics import roc_auc_score
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers import Embedding, Reshape
-from tensorflow.keras.losses import MeanSquaredError
+from tensorflow.keras.losses import MeanSquaredError, BinaryCrossentropy
 from tensorflow.keras.models import Model
 
 from mmbeddings.models.embeddings import EmbeddingsDecoder, EmbeddingsDecoderGrowthModel
@@ -51,7 +52,7 @@ class RegbeddingsEncoder(Model):
 
 
 class RegbeddingsMLP(Model):
-    def __init__(self, exp_in, input_dim, growth_model=False):
+    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model=False):
         """
         MLP-based regularized embeddings model (Richman, 2024).
         """
@@ -64,7 +65,7 @@ class RegbeddingsMLP(Model):
         if growth_model:
             self.decoder = EmbeddingsDecoderGrowthModel()
         else:
-            self.decoder = EmbeddingsDecoder(exp_in, self.input_dim)
+            self.decoder = EmbeddingsDecoder(exp_in, self.input_dim, last_layer_activation)
         self.n_RE_inputs = len(self.exp_in.qs)
         self.re_log_sig2b_prior = tf.constant(np.log(self.exp_in.re_sig2b_prior, dtype=np.float32))
         self.beta = self.exp_in.beta_vae
@@ -81,10 +82,10 @@ class RegbeddingsMLP(Model):
         regbeddings_mean_list, regbeddings_log_var_list, regbeddings_list = self.encoder(Z_inputs)
         output = self.decoder(X_input, regbeddings_list)
 
-        self.add_loss_and_metrics(y_input, output, regbeddings_mean_list, regbeddings_log_var_list)
+        self.add_loss_and_metrics(y_input, output, regbeddings_mean_list, regbeddings_log_var_list, self.exp_in.y_type)
         return output
 
-    def add_loss_and_metrics(self, y_true, y_pred, re_codings_mean_list, re_codings_log_var_list):
+    def add_loss_and_metrics(self, y_true, y_pred, re_codings_mean_list, re_codings_log_var_list, y_type):
         for i in range(self.n_RE_inputs):
             re_codings_mean = re_codings_mean_list[i]
             re_codings_log_var = re_codings_log_var_list[i]
@@ -98,9 +99,14 @@ class RegbeddingsMLP(Model):
             else:
                 re_kl_loss += re_kl_loss_i
         self.add_loss(self.beta * re_kl_loss)
-        squared_loss = MeanSquaredError()(y_true, y_pred)
-        self.add_loss(squared_loss)
-        self.add_metric(squared_loss, name='squared_loss')
+        if y_type == 'continuous':
+            log_lik = MeanSquaredError()(y_true, y_pred)
+        elif y_type == 'binary':
+            log_lik = BinaryCrossentropy()(y_true, y_pred)
+        else:
+            raise ValueError(f'Unsupported y_type: {y_type}')
+        self.add_loss(log_lik)
+        self.add_metric(log_lik, name='squared_loss')
         self.add_metric(re_kl_loss, name='re_kl_loss')
     
     def fit_model(self, X_train, Z_train, y_train, shuffle=True):
@@ -134,13 +140,18 @@ class RegbeddingsMLP(Model):
         return B_hat_list_processed
 
     def summarize(self, y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history):
-        mse = np.mean((y_test - y_pred) ** 2)
+        if self.exp_in.y_type == 'continuous':
+            metric = np.mean((y_test - y_pred) ** 2)
+        elif self.exp_in.y_type == 'binary':
+            metric = roc_auc_score(y_test, y_pred)
+        else:
+            raise ValueError(f'Unsupported y_type: {self.exp_in.y_type}')
         sig2bs_mean_est = [np.mean(sig2bs) for sig2bs in sig2bs_hat_list]
         sigmas = [np.nan, sig2bs_mean_est]
         nll_tr, nll_te = losses_tr[0], losses_te[0]
         n_epochs = len(history.history['loss'])
         n_params = self.count_params()
-        return mse, sigmas, nll_tr, nll_te, n_epochs, n_params
+        return metric, sigmas, nll_tr, nll_te, n_epochs, n_params
     
     def evaluate_model(self, X, Z, y):
         total_loss, squared_loss, re_kl_loss = self.evaluate([X] + [y] + Z, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)
