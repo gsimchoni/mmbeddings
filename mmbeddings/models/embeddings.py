@@ -4,20 +4,22 @@ import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers import Concatenate, Dense, Embedding, Layer, Reshape
 from tensorflow.keras.models import Model
+from tensorflow.keras.regularizers import L2
 
 from mmbeddings.models.utils import build_coder
 
 
 class EmbeddingsEncoder(Layer):
-    def __init__(self, qs, d, name="encoder", **kwargs):
+    def __init__(self, qs, d, l2reg_lambda, name="encoder", **kwargs):
         super().__init__(name=name, **kwargs)
-        self.embeddings = self.build_embeddings(qs, d)
+        self.embeddings = self.build_embeddings(qs, d, l2reg_lambda)
     
-    def build_embeddings(self, qs, d):
+    def build_embeddings(self, qs, d, l2reg_lambda):
         embeddings = []
         for i, q in enumerate(qs):
             model = tf.keras.Sequential([
-                Embedding(q, d, input_length=1, name='embed' + str(i)),
+                Embedding(q, d, input_length=1, name='embed' + str(i),
+                          embeddings_regularizer= None if l2reg_lambda is None else L2(l2reg_lambda)),
                 Reshape(target_shape=(d,))
             ])
             embeddings.append(model)
@@ -68,7 +70,7 @@ class EmbeddingsDecoderGrowthModel(Layer):
 
 
 class EmbeddingsMLP(Model):
-    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model=False):
+    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model, l2reg_lambda):
         """
         Multi-layer perceptron model with embeddings.
         """
@@ -77,7 +79,7 @@ class EmbeddingsMLP(Model):
         self.input_dim = input_dim
         self.callbacks = [EarlyStopping(monitor='val_loss', patience=10)]
         # self.callbacks = [EarlyStopping(monitor='val_loss', patience=self.exp_in.epochs if self.exp_in.patience is None else self.exp_in.patience)]
-        self.encoder = EmbeddingsEncoder(self.exp_in.qs, self.exp_in.d)
+        self.encoder = EmbeddingsEncoder(self.exp_in.qs, self.exp_in.d, l2reg_lambda)
         if growth_model:
             self.decoder = EmbeddingsDecoderGrowthModel()
         else:

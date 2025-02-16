@@ -116,6 +116,8 @@ class Simulation:
             experiment = IgnoreOHE(self.exp_in, ignore_RE=False)
         elif exp_type == 'embeddings':
             experiment = Embeddings(self.exp_in)
+        elif exp_type == 'embeddings-l2':
+            experiment = Embeddings(self.exp_in, l2reg_lambda=0.1)
         elif exp_type == 'embeddings_growth_model':
             experiment = Embeddings(self.exp_in, growth_model=True)
         elif exp_type == 'mmbeddings':

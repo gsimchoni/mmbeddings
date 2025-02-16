@@ -112,9 +112,10 @@ class IgnoreOHE(Experiment):
         return X_train.shape[1]
 
 class Embeddings(Experiment):
-    def __init__(self, exp_in, growth_model=False):
-        super().__init__(exp_in, 'embeddings', Embeddings)
+    def __init__(self, exp_in, growth_model=False, l2reg_lambda=None):
+        super().__init__(exp_in, 'embeddings' if l2reg_lambda is None else 'embeddings-l2', Embeddings)
         self.growth_model = growth_model
+        self.l2reg_lambda = l2reg_lambda
 
     def prepare_input_data(self):
         X_train_z_cols = [self.X_train[z_col] for z_col in self.X_train.columns[self.X_train.columns.str.startswith('z')]]
@@ -130,7 +131,7 @@ class Embeddings(Experiment):
         start = time.time()
         X_train, X_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
-        model = EmbeddingsMLP(self.exp_in, input_dim, self.last_layer_activation, self.growth_model)
+        model = EmbeddingsMLP(self.exp_in, input_dim, self.last_layer_activation, self.growth_model, self.l2reg_lambda)
         model.compile(loss=self.loss, optimizer='adam')
         history = model.fit_model(X_train, self.y_train)
         embeddings_list = [embed.get_weights()[0] for embed in model.encoder.embeddings]
