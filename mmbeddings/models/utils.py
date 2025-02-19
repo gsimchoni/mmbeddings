@@ -25,3 +25,37 @@ class Sampling(Layer):
     def call(self, inputs):
         mean, log_var = inputs
         return K.random_normal(K.shape(log_var)) * K.exp(log_var / 2) + mean
+
+def compute_category_embedding(cat_feature, embeddings, num_tokens, return_batch=True):
+    """
+    Given:
+      cat_feature: Integer tensor of shape (B, 1) representing the categorical feature.
+      embeddings:  Latent embeddings tensor of shape (B, E) for each observation.
+      num_tokens:  Total number of categories.
+      
+    Returns:
+      final_embeddings: Tensor of shape (B, E), where each observation gets the averaged
+                        embedding for its category.
+    """
+    # Flatten cat_feature from shape (B, 1) to (B,)
+    cat_feature_flat = tf.reshape(cat_feature, [-1])
+    
+    # Sum the latent embeddings for each category.
+    # summed_embeddings will be of shape (num_tokens, E)
+    summed_embeddings = tf.math.unsorted_segment_sum(embeddings,
+                                                     cat_feature_flat,
+                                                     num_segments=num_tokens)
+    
+    # Count the number of occurrences for each category.
+    counts = tf.math.unsorted_segment_sum(tf.ones_like(cat_feature_flat, dtype=tf.float32),
+                                          cat_feature_flat,
+                                          num_segments=num_tokens)
+    
+    # Compute the average embedding for each category.
+    avg_embeddings = tf.math.divide_no_nan(summed_embeddings, tf.expand_dims(counts, axis=-1))
+    
+    # Now, for each observation, look up the average embedding for its category.
+    if return_batch:
+        avg_embeddings = tf.gather(avg_embeddings, cat_feature_flat)
+    
+    return avg_embeddings

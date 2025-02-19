@@ -10,7 +10,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers.experimental.preprocessing import CategoryEncoding
 from tensorflow.keras.losses import MeanSquaredError, BinaryCrossentropy
 
-from mmbeddings.models.utils import Sampling, build_coder
+from mmbeddings.models.utils import Sampling, build_coder, compute_category_embedding
 
 
 class MmbeddingsEncoder(Model):
@@ -69,25 +69,14 @@ class MmbeddingsDecoder(Model):
         self.dense_output = Dense(1, activation=last_layer_activation)
 
     def call(self, X_input, Z_inputs, mmbeddings_list):
-        Z_mats = []
-        for i in range(self.n_RE_inputs):
-            Z_input = Z_inputs[i]
-            if version.parse(tf.__version__) >= version.parse('2.8'):
-                Z = CategoryEncoding(num_tokens=self.qs[i], output_mode='one_hot')(Z_input)
-            else:
-                Z = CategoryEncoding(max_tokens=self.qs[i], output_mode='binary')(Z_input)
-            Z_mats.append(Z)
         ZB_list = []
         for i in range(self.n_RE_inputs):
-            Z = Z_mats[i]
-            decoder_re_inputs = mmbeddings_list[i]
-            B = tf.math.divide_no_nan(K.dot(K.transpose(Z), decoder_re_inputs), K.reshape(K.sum(Z, axis=0), (self.qs[i], 1)))
-            ZB = K.dot(Z, B)
+            ZB = compute_category_embedding(Z_inputs[i], mmbeddings_list[i], self.qs[i])
             ZB_list.append(ZB)
         features_embedding_concat = self.concat([X_input] + ZB_list)
         out_hidden = self.nn(features_embedding_concat)
         output = self.dense_output(out_hidden)
-        return output, Z_mats
+        return output
     
     def predict_with_custom_B(self, X_input, B_input):
         X_B_combined = np.concatenate([X_input] + B_input, axis=1)
@@ -174,20 +163,17 @@ class MmbeddingsVAE(Model):
         y_input = inputs[1]
         Z_inputs = inputs[2:]
         mmbeddings_mean_list, mmbeddings_log_var_list, mmbeddings_list = self.encoder((X_input, y_input))
-        output, Z_mats = self.decoder(X_input, Z_inputs, mmbeddings_list)
+        output = self.decoder(X_input, Z_inputs, mmbeddings_list)
 
-        self.add_loss_and_metrics(y_input, output, Z_mats, mmbeddings_mean_list, mmbeddings_log_var_list)
+        self.add_loss_and_metrics(y_input, output, Z_inputs, mmbeddings_mean_list, mmbeddings_log_var_list)
         return output
 
-    def add_loss_and_metrics(self, y_input, y_pred, Z_mats, re_codings_mean_list, re_codings_log_var_list):
+    def add_loss_and_metrics(self, y_input, y_pred, Z_inputs, re_codings_mean_list, re_codings_log_var_list):
         for i in range(self.n_RE_inputs):
-            Z0 = Z_mats[i]
-            re_codings_mean = re_codings_mean_list[i]
-            re_codings_log_var = re_codings_log_var_list[i]
-            re_codings_mean = tf.math.divide_no_nan(K.dot(K.transpose(Z0), re_codings_mean), K.reshape(K.sum(Z0, axis=0), (self.qs[i], 1)))            
+            re_codings_mean = compute_category_embedding(Z_inputs[i], re_codings_mean_list[i], self.qs[i], return_batch=False)
+            re_codings_log_var = compute_category_embedding(Z_inputs[i], re_codings_log_var_list[i], self.qs[i], return_batch=False)
             # re_codings_log_var = tf.math.divide_no_nan(K.dot(K.transpose(Z0), K.exp(re_codings_log_var)), K.reshape(K.sum(Z0, axis=0)**2, (self.qs[i], 1)))
             # re_codings_log_var = K.log(tf.where(tf.equal(re_codings_log_var, 0), tf.ones_like(re_codings_log_var), re_codings_log_var))
-            re_codings_log_var = tf.math.divide_no_nan(K.dot(K.transpose(Z0), re_codings_log_var), K.reshape(K.sum(Z0, axis=0), (self.qs[i], 1)))
             re_kl_loss_i = -0.5 * K.sum(
                 1 + re_codings_log_var - self.re_log_sig2b_prior -
                 K.exp(re_codings_log_var - self.re_log_sig2b_prior) - K.square(re_codings_mean) * K.exp(-self.re_log_sig2b_prior),
@@ -281,8 +267,6 @@ class MmbeddingsDecoderPostTraining(Model):
         mmbeddings_list = inputs[1]
         Z_inputs = inputs[2:]
         output = self.decoder(X_input, Z_inputs, mmbeddings_list)
-        if self.exp_type == 'mmbeddings':
-            output = output[0]
         return output
     
     def fit_model(self, X_train, Z_train, embeddings_list_processed, y_train):
