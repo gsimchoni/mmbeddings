@@ -101,6 +101,7 @@ class MmbeddingsDecoderGrowthModel(Layer):
         self.beta_3 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_3")
 
     def call(self, X_input, Z_inputs, mmbeddings_list):
+        # TODO: Refactor this to use the compute_category_embedding function.
         Z_mats = []
         for i in range(self.n_RE_inputs):
             Z_input = Z_inputs[i]

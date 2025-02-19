@@ -37,6 +37,7 @@ class MmbeddingsEncoder(Model):
         self.sampling = Sampling()
             
     def call(self, inputs):
+        # TODO: Refactor this to use the compute_category_embedding function.
         X_input = inputs[0]
         y_input = inputs[1]
         Z_inputs = inputs[2:]
@@ -79,6 +80,7 @@ class MmbeddingsDecoder(Layer):
         self.dense_output = Dense(1, activation=last_layer_activation)
 
     def call(self, X_input, Z_inputs, mmbeddings_list):
+        # TODO: Refactor this to use the compute_category_embedding function.
         ZB_list = []
         for i in range(self.n_RE_inputs):
             Z_input = Z_inputs[i]
@@ -117,6 +119,7 @@ class MmbeddingsDecoderGrowthModel(Layer):
         self.beta_3 = tf.Variable(initial_value=1.0, dtype=tf.float32, trainable=True, name="beta_3")
 
     def call(self, X_input, Z_inputs, mmbeddings_list):
+        # TODO: Refactor this to use the compute_category_embedding function.
         Z_mats = []
         for i in range(self.n_RE_inputs):
             Z_input = Z_inputs[i]
