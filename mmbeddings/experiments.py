@@ -112,10 +112,11 @@ class IgnoreOHE(Experiment):
         return X_train.shape[1]
 
 class Embeddings(Experiment):
-    def __init__(self, exp_in, growth_model=False, l2reg_lambda=None):
+    def __init__(self, exp_in, growth_model=False, l2reg_lambda=None, simulation_mode=True):
         super().__init__(exp_in, 'embeddings' if l2reg_lambda is None else 'embeddings-l2', Embeddings)
         self.growth_model = growth_model
         self.l2reg_lambda = l2reg_lambda
+        self.simulation_mode = simulation_mode
 
     def prepare_input_data(self):
         X_train_z_cols = [self.X_train[z_col] for z_col in self.X_train.columns[self.X_train.columns.str.startswith('z')]]
@@ -140,16 +141,19 @@ class Embeddings(Experiment):
         end = time.time()
         runtime = end - start
         metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
-        frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
+        frobenius, spearman, nrmse = np.nan, np.nan, np.nan
+        if self.simulation_mode:
+            frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
         self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
 
 class REbeddings(Experiment):
-    def __init__(self, exp_in, REbeddings_type, growth_model=False):
+    def __init__(self, exp_in, REbeddings_type, growth_model=False, simulation_mode=True):
         super().__init__(exp_in, REbeddings_type, REbeddings)
         self.growth_model = growth_model
         self.RE_cols = self.get_RE_cols_by_prefix(self.X_train, self.exp_in.RE_cols_prefix)
         self.diverse_batches = False
+        self.simulation_mode = simulation_mode
         if REbeddings_type == 'mmbeddings':
             self.model_class = MmbeddingsVAE
         elif REbeddings_type == 'regbeddings':
@@ -181,7 +185,9 @@ class REbeddings(Experiment):
         end = time.time()
         runtime = end - start
         metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
-        frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
+        frobenius, spearman, nrmse = np.nan, np.nan, np.nan
+        if self.simulation_mode:
+            frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
         if self.diverse_batches:
             self.undiversify_batches()
         self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
