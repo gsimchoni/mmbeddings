@@ -13,7 +13,7 @@ from mmbeddings.metrics import calculate_embedding_metrics
 
 
 class Experiment:
-    def __init__(self, exp_in, exp_type, ModelClass):
+    def __init__(self, exp_in, exp_type, ModelClass, processing_fn=lambda x: x):
         """
         Parameters:
         exp_in : ExpInput - Input data for the experiment.
@@ -28,6 +28,7 @@ class Experiment:
         self.y_test = exp_in.y_test
         self.n_sig2bs = exp_in.n_sig2bs
         self.model_class = ModelClass
+        self.processing_fn = processing_fn
         if self.exp_in.y_type == 'continuous':
             self.loss = 'mse'
             self.last_layer_activation = 'linear'
@@ -48,6 +49,7 @@ class Experiment:
         model.build()
         history = model.fit(X_train, self.y_train)
         y_pred = model.predict(X_test)
+        y_pred = self.processing_fn(y_pred)
         end = time.time()
         runtime = end - start
         metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history)
@@ -72,11 +74,11 @@ class Experiment:
 
 
 class IgnoreOHE(Experiment):
-    def __init__(self, exp_in, ignore_RE):
+    def __init__(self, exp_in, ignore_RE, processing_fn=lambda x: x):
         if ignore_RE:
-            super().__init__(exp_in, 'ignore', MLP)
+            super().__init__(exp_in, 'ignore', MLP, processing_fn)
         else:
-            super().__init__(exp_in, 'ohe', MLP)
+            super().__init__(exp_in, 'ohe', MLP, processing_fn)
         self.ignore_RE = ignore_RE
     
     def process_one_hot_encoding(self, X_train, X_test, x_cols):
@@ -112,8 +114,8 @@ class IgnoreOHE(Experiment):
         return X_train.shape[1]
 
 class Embeddings(Experiment):
-    def __init__(self, exp_in, growth_model=False, l2reg_lambda=None, simulation_mode=True):
-        super().__init__(exp_in, 'embeddings' if l2reg_lambda is None else 'embeddings-l2', Embeddings)
+    def __init__(self, exp_in, processing_fn=lambda x: x, growth_model=False, l2reg_lambda=None, simulation_mode=True):
+        super().__init__(exp_in, 'embeddings' if l2reg_lambda is None else 'embeddings-l2', Embeddings, processing_fn)
         self.growth_model = growth_model
         self.l2reg_lambda = l2reg_lambda
         self.simulation_mode = simulation_mode
@@ -138,6 +140,7 @@ class Embeddings(Experiment):
         embeddings_list = [embed.get_weights()[0] for embed in model.encoder.embeddings]
         sig2bs_hat_list = [embeddings_list[i].var(axis=0) for i in range(len(embeddings_list))]
         y_pred = model.predict(X_test, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)
+        y_pred = self.processing_fn(y_pred)
         end = time.time()
         runtime = end - start
         metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
@@ -148,8 +151,8 @@ class Embeddings(Experiment):
 
 
 class REbeddings(Experiment):
-    def __init__(self, exp_in, REbeddings_type, growth_model=False, simulation_mode=True):
-        super().__init__(exp_in, REbeddings_type, REbeddings)
+    def __init__(self, exp_in, REbeddings_type, processing_fn=lambda x: x, growth_model=False, simulation_mode=True):
+        super().__init__(exp_in, REbeddings_type, REbeddings, processing_fn)
         self.growth_model = growth_model
         self.RE_cols = self.get_RE_cols_by_prefix(self.X_train, self.exp_in.RE_cols_prefix)
         self.diverse_batches = False
@@ -180,6 +183,7 @@ class REbeddings(Experiment):
             model_post_trainer.compile(optimizer='adam', loss='mse')
             model_post_trainer.fit_model(X_train, Z_train, embeddings_list_processed, self.y_train)
         y_pred = model.predict_model(X_test, Z_test, embeddings_list)
+        y_pred = self.processing_fn(y_pred)
         losses_tr = model.evaluate_model(X_train, Z_train, self.y_train)
         losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
         end = time.time()
@@ -224,8 +228,8 @@ class REbeddings(Experiment):
 
 
 class LMMNN(Experiment):
-    def __init__(self, exp_in):
-        super().__init__(exp_in, 'lmmnn', LMMNN)
+    def __init__(self, exp_in, processing_fn=lambda x: x):
+        super().__init__(exp_in, 'lmmnn', LMMNN, processing_fn)
     
     def run(self):
         start = time.time()
@@ -239,6 +243,7 @@ class LMMNN(Experiment):
             est_cors, dist_matrix, spatial_embed_neurons, self.exp_in.verbose,
             Z_non_linear, self.exp_in.Z_embed_dim_pct, self.exp_in.log_params,
             self.exp_in.k, shuffle, sample_n_train, self.exp_in.B_true_list)
+        y_pred = self.processing_fn(y_pred)
         end = time.time()
         runtime = end - start
         if y_type == 'continuous':
