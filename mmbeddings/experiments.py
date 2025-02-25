@@ -1,6 +1,8 @@
 import time
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.metrics import roc_auc_score
 from mmbeddings.models.lmmnn.lmmnn import run_lmmnn
 from mmbeddings.models.mlp import MLP
@@ -13,7 +15,7 @@ from mmbeddings.metrics import calculate_embedding_metrics
 
 
 class Experiment:
-    def __init__(self, exp_in, exp_type, ModelClass, processing_fn=lambda x: x):
+    def __init__(self, exp_in, exp_type, ModelClass, processing_fn=lambda x: x, plot_fn=None):
         """
         Parameters:
         exp_in : ExpInput - Input data for the experiment.
@@ -29,6 +31,7 @@ class Experiment:
         self.n_sig2bs = exp_in.n_sig2bs
         self.model_class = ModelClass
         self.processing_fn = processing_fn
+        self.plot_fn = plot_fn
         if self.exp_in.y_type == 'continuous':
             self.loss = 'mse'
             self.last_layer_activation = 'linear'
@@ -54,6 +57,8 @@ class Experiment:
         runtime = end - start
         metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history)
         frobenius, spearman, nrmse = np.nan, np.nan, np.nan
+        if self.plot_fn:
+            self.plot_fn(self.y_test, y_pred.flatten())
         self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
     def summarize(self):
@@ -114,8 +119,8 @@ class IgnoreOHE(Experiment):
         return X_train.shape[1]
 
 class Embeddings(Experiment):
-    def __init__(self, exp_in, processing_fn=lambda x: x, growth_model=False, l2reg_lambda=None, simulation_mode=True):
-        super().__init__(exp_in, 'embeddings' if l2reg_lambda is None else 'embeddings-l2', Embeddings, processing_fn)
+    def __init__(self, exp_in, processing_fn=lambda x: x, plot_fn=None, growth_model=False, l2reg_lambda=None, simulation_mode=True):
+        super().__init__(exp_in, 'embeddings' if l2reg_lambda is None else 'embeddings-l2', Embeddings, processing_fn, plot_fn)
         self.growth_model = growth_model
         self.l2reg_lambda = l2reg_lambda
         self.simulation_mode = simulation_mode
@@ -147,12 +152,14 @@ class Embeddings(Experiment):
         frobenius, spearman, nrmse = np.nan, np.nan, np.nan
         if self.simulation_mode:
             frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
+        if self.plot_fn:
+            self.plot_fn(self.y_test, y_pred.flatten())
         self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
 
 class REbeddings(Experiment):
-    def __init__(self, exp_in, REbeddings_type, processing_fn=lambda x: x, growth_model=False, simulation_mode=True):
-        super().__init__(exp_in, REbeddings_type, REbeddings, processing_fn)
+    def __init__(self, exp_in, REbeddings_type, processing_fn=lambda x: x, plot_fn=None, growth_model=False, simulation_mode=True):
+        super().__init__(exp_in, REbeddings_type, REbeddings, processing_fn, plot_fn)
         self.growth_model = growth_model
         self.RE_cols = self.get_RE_cols_by_prefix(self.X_train, self.exp_in.RE_cols_prefix)
         self.diverse_batches = False
@@ -192,6 +199,8 @@ class REbeddings(Experiment):
         frobenius, spearman, nrmse = np.nan, np.nan, np.nan
         if self.simulation_mode:
             frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
+        if self.plot_fn:
+            self.plot_fn(self.y_test, y_pred.flatten())
         if self.diverse_batches:
             self.undiversify_batches()
         self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
