@@ -79,11 +79,11 @@ class Experiment:
 
 
 class IgnoreOHE(Experiment):
-    def __init__(self, exp_in, ignore_RE, processing_fn=lambda x: x):
+    def __init__(self, exp_in, ignore_RE, processing_fn=lambda x: x, plot_fn=None):
         if ignore_RE:
-            super().__init__(exp_in, 'ignore', MLP, processing_fn)
+            super().__init__(exp_in, 'ignore', MLP, processing_fn, plot_fn)
         else:
-            super().__init__(exp_in, 'ohe', MLP, processing_fn)
+            super().__init__(exp_in, 'ohe', MLP, processing_fn, plot_fn)
         self.ignore_RE = ignore_RE
     
     def process_one_hot_encoding(self, X_train, X_test, x_cols):
@@ -237,8 +237,8 @@ class REbeddings(Experiment):
 
 
 class LMMNN(Experiment):
-    def __init__(self, exp_in, processing_fn=lambda x: x):
-        super().__init__(exp_in, 'lmmnn', LMMNN, processing_fn)
+    def __init__(self, exp_in, processing_fn=lambda x: x, plot_fn=None):
+        super().__init__(exp_in, 'lmmnn', LMMNN, processing_fn, plot_fn)
     
     def run(self):
         start = time.time()
@@ -262,6 +262,8 @@ class LMMNN(Experiment):
         else:
             raise ValueError(f'Unsupported y_type: {y_type}')
         frobenius, spearman, nrmse = np.nan, np.nan, np.nan
+        if self.plot_fn:
+            self.plot_fn(self.y_test, y_pred.flatten())
         self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
 
     def get_init_vals(self):
