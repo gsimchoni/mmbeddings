@@ -22,7 +22,7 @@ class MmbeddingsEncoder(Model):
         self.input_dim = input_dim
         self.n_RE_inputs = len(self.exp_in.qs)
         self.d = self.exp_in.d
-        self.n_neurons = self.exp_in.n_neurons
+        self.n_neurons = self.exp_in.n_neurons_encoder
         self.dropout = self.exp_in.dropout
         self.dense_encoder_layers = []
         self.nn = build_coder(input_dim + 1, self.n_neurons, self.dropout, self.exp_in.activation)

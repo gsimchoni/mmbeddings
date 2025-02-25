@@ -184,6 +184,7 @@ class ExperimentInput:
         return ExpInput(*self.exp_data, self.n_train, self.n_test, self.pred_unknown_clusters, self.qs, self.d, self.sig2e,
                         self.sig2bs, self.params['y_type'], self.k, self.params['batch'], self.params['epochs'], self.params['patience'],
                         self.params['Z_embed_dim_pct'], self.n_sig2bs, self.params['verbose'], self.params['n_neurons'],
+                        self.params.get('n_neurons_encoder', self.params['n_neurons']),
                         self.params['dropout'], self.params['activation'], self.params['RE_cols_prefix'],
                         self.params['re_sig2b_prior'], self.params['beta_vae'], self.params['log_params'])
 
