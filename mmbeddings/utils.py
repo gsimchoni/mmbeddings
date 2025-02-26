@@ -12,7 +12,7 @@ ExpInput = namedtuple('ExpInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_
                                    'sig2bs', 'y_type', 'k', 'batch', 'epochs', 'patience',
                                    'Z_embed_dim_pct', 'n_sig2bs', 'verbose',
                                    'n_neurons', 'n_neurons_encoder', 'dropout', 'activation', 'RE_cols_prefix',
-                                   're_sig2b_prior', 'beta_vae', 'log_params',
+                                   're_sig2b_prior', 'beta_vae', 'log_params', 'mmbeddings_post_training'
                                    ])
 
 class Count:

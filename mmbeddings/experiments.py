@@ -181,7 +181,7 @@ class REbeddings(Experiment):
         model.compile(optimizer='adam')
         history = model.fit_model(X_train, Z_train, self.y_train, shuffle=not self.diverse_batches)
         embeddings_list, sig2bs_hat_list = model.predict_embeddings(X_train, Z_train, self.y_train)
-        if self.exp_type == 'mmbeddings':
+        if self.exp_type == 'mmbeddings' and self.exp_in.mmbeddings_post_training:
             # uncomment to see the difference in test MSE when adding decoder post training
             # y_pred0 = model.predict_model(X_test, Z_test, embeddings_list)
             # mse0 = np.mean((self.y_test - y_pred0) ** 2)
