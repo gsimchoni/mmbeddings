@@ -164,6 +164,7 @@ class REbeddings(Experiment):
         self.RE_cols = self.get_RE_cols_by_prefix(self.X_train, self.exp_in.RE_cols_prefix)
         self.diverse_batches = False
         self.simulation_mode = simulation_mode
+        self.evaluate = True
         if REbeddings_type == 'mmbeddings':
             self.model_class = MmbeddingsVAE
         elif REbeddings_type == 'regbeddings':
@@ -192,8 +193,10 @@ class REbeddings(Experiment):
             model_post_trainer.fit_model(X_train, Z_train, embeddings_list_processed, self.y_train)
         y_pred = model.predict_model(X_test, Z_test, embeddings_list)
         y_pred = self.processing_fn(y_pred)
-        losses_tr = model.evaluate_model(X_train, Z_train, self.y_train)
-        losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
+        losses_tr, losses_te = [np.nan], [np.nan]
+        if self.evaluate:
+            losses_tr = model.evaluate_model(X_train, Z_train, self.y_train)
+            losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
         end = time.time()
         runtime = end - start
         metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
