@@ -261,7 +261,7 @@ class MmbeddingsDecoderPostTraining(Model):
         self.decoder = decoder
         self.exp_type = exp_type
         self.callbacks = [EarlyStopping(
-            monitor='val_loss', patience=5)]
+            monitor='val_loss', patience=self.exp_in.epochs_post_training if self.exp_in.patience_post_training is None else self.exp_in.patience_post_training)]
     
     def call(self, inputs):
         X_input = inputs[0]
@@ -273,6 +273,6 @@ class MmbeddingsDecoderPostTraining(Model):
     def fit_model(self, X_train, Z_train, embeddings_list_processed, y_train):
         self.fit([X_train] + [embeddings_list_processed] + Z_train,
                  y_train, verbose=self.exp_in.verbose,
-                 batch_size=self.exp_in.batch, epochs=self.exp_in.epochs,
+                 batch_size=self.exp_in.batch, epochs=self.exp_in.epochs_post_training,
                  callbacks=self.callbacks, validation_split=0.1)
         

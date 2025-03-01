@@ -187,7 +187,9 @@ class ExperimentInput:
                         self.params.get('n_neurons_encoder', self.params['n_neurons']),
                         self.params['dropout'], self.params['activation'], self.params['RE_cols_prefix'],
                         self.params['re_sig2b_prior'], self.params['beta_vae'], self.params['log_params'],
-                        self.params.get('mmbeddings_post_training', True))
+                        self.params.get('mmbeddings_post_training', True),
+                        self.params.get('epochs_post_training', self.params['epochs']),
+                        self.params.get('patience_post_training', self.params['patience']))
 
 def non_linear_fn0(input_features):
     # Periodic sine function of the sum of squares of input features
