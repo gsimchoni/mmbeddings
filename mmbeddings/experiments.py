@@ -164,7 +164,7 @@ class REbeddings(Experiment):
         self.RE_cols = self.get_RE_cols_by_prefix(self.X_train, self.exp_in.RE_cols_prefix)
         self.diverse_batches = False
         self.simulation_mode = simulation_mode
-        self.evaluate = True
+        self.evaluate = False
         if REbeddings_type == 'mmbeddings':
             self.model_class = MmbeddingsVAE
         elif REbeddings_type == 'regbeddings':
