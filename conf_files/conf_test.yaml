@@ -40,6 +40,7 @@ exp_types:
   - 'ohe'
   - 'embeddings'
   - 'embeddings-l2'
+  - 'hashing'
   - 'regbeddings'
   - 'lmmnn'
   - 'mmbeddings'

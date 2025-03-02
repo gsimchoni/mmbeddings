@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.metrics import roc_auc_score
 import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.layers import Concatenate, Dense, Embedding, Layer, Reshape
+from tensorflow.keras.layers import Concatenate, Dense, Embedding, Layer, Reshape, Hashing
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import L2
 
@@ -32,6 +32,25 @@ class EmbeddingsEncoder(Layer):
         return embeds
 
 
+class HashingEncoder(Layer):
+    def __init__(self, qs, hashing_bins, name="encoder", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.embeddings = self.build_hashings(qs, hashing_bins)
+    
+    def build_hashings(self, qs, hashing_bins):
+        hashings = []
+        for i, q in enumerate(qs):
+            hashing = Hashing(num_bins = hashing_bins, output_mode='multi_hot', sparse=True, name='hash' + str(i))
+            hashings.append(hashing)
+        return hashings
+    
+    def call(self, inputs):
+        hashs = []
+        for i, hashing in enumerate(self.embeddings):
+            hashs.append(hashing(inputs[i]))
+        return hashs
+
+
 class EmbeddingsDecoder(Layer):
     """"""
 
@@ -39,8 +58,7 @@ class EmbeddingsDecoder(Layer):
         super().__init__(name=name, **kwargs)
         self.exp_in = exp_in
         self.input_dim = input_dim
-        self.concat_input_dim =  self.input_dim + self.exp_in.d * len(self.exp_in.qs)
-        self.nn = build_coder(self.concat_input_dim, self.exp_in.n_neurons,
+        self.nn = build_coder(self.input_dim, self.exp_in.n_neurons,
                               self.exp_in.dropout, self.exp_in.activation)
         self.concat = Concatenate()
         self.dense_output = Dense(1, activation=last_layer_activation)
@@ -70,20 +88,25 @@ class EmbeddingsDecoderGrowthModel(Layer):
 
 
 class EmbeddingsMLP(Model):
-    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model, l2reg_lambda):
+    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model, l2reg_lambda, feature_hashing):
         """
         Multi-layer perceptron model with embeddings.
         """
         super(EmbeddingsMLP, self).__init__()
         self.exp_in = exp_in
         self.input_dim = input_dim
-        self.callbacks = [EarlyStopping(monitor='val_loss', patience=10)]
-        # self.callbacks = [EarlyStopping(monitor='val_loss', patience=self.exp_in.epochs if self.exp_in.patience is None else self.exp_in.patience)]
-        self.encoder = EmbeddingsEncoder(self.exp_in.qs, self.exp_in.d, l2reg_lambda)
+        # self.callbacks = [EarlyStopping(monitor='val_loss', patience=10)]
+        self.callbacks = [EarlyStopping(monitor='val_loss', patience=self.exp_in.epochs if self.exp_in.patience is None else self.exp_in.patience)]
+        if feature_hashing:
+            self.encoder = HashingEncoder(self.exp_in.qs, self.exp_in.hashing_bins)
+            decoder_input_dim = self.input_dim + self.exp_in.hashing_bins * len(self.exp_in.qs)
+        else:
+            self.encoder = EmbeddingsEncoder(self.exp_in.qs, self.exp_in.d, l2reg_lambda)
+            decoder_input_dim = self.input_dim + self.exp_in.d * len(self.exp_in.qs)
         if growth_model:
             self.decoder = EmbeddingsDecoderGrowthModel()
         else:
-            self.decoder = EmbeddingsDecoder(self.exp_in, self.input_dim, last_layer_activation)
+            self.decoder = EmbeddingsDecoder(self.exp_in, decoder_input_dim, last_layer_activation)
             
     def call(self, inputs):
         """

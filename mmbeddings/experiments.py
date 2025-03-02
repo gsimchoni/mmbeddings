@@ -119,11 +119,24 @@ class IgnoreOHE(Experiment):
         return X_train.shape[1]
 
 class Embeddings(Experiment):
-    def __init__(self, exp_in, processing_fn=lambda x: x, plot_fn=None, growth_model=False, l2reg_lambda=None, simulation_mode=True):
-        super().__init__(exp_in, 'embeddings' if l2reg_lambda is None else 'embeddings-l2', Embeddings, processing_fn, plot_fn)
+    def __init__(self, exp_in, processing_fn=lambda x: x, plot_fn=None,
+                 growth_model=False, l2reg_lambda=None, feature_hashing=False,
+                 simulation_mode=True):
+        exp_name = self.determine_exp_name(l2reg_lambda, feature_hashing)
+        super().__init__(exp_in, exp_name, Embeddings, processing_fn, plot_fn)
         self.growth_model = growth_model
         self.l2reg_lambda = l2reg_lambda
         self.simulation_mode = simulation_mode
+        self.feature_hashing = feature_hashing
+
+    def determine_exp_name(self, l2reg_lambda, feature_hashing):
+        if feature_hashing:
+            exp_name = 'hashing'
+        elif l2reg_lambda is None:
+            exp_name = 'embeddings'
+        else:
+            exp_name = 'embeddings-l2'
+        return exp_name
 
     def prepare_input_data(self):
         X_train_z_cols = [self.X_train[z_col] for z_col in self.X_train.columns[self.X_train.columns.str.startswith('z')]]
@@ -139,18 +152,22 @@ class Embeddings(Experiment):
         start = time.time()
         X_train, X_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
-        model = EmbeddingsMLP(self.exp_in, input_dim, self.last_layer_activation, self.growth_model, self.l2reg_lambda)
+        model = EmbeddingsMLP(self.exp_in, input_dim, self.last_layer_activation,
+                              self.growth_model, self.l2reg_lambda, self.feature_hashing)
         model.compile(loss=self.loss, optimizer='adam')
         history = model.fit_model(X_train, self.y_train)
-        embeddings_list = [embed.get_weights()[0] for embed in model.encoder.embeddings]
-        sig2bs_hat_list = [embeddings_list[i].var(axis=0) for i in range(len(embeddings_list))]
+        if not self.feature_hashing:
+            embeddings_list = [embed.get_weights()[0] for embed in model.encoder.embeddings]
+            sig2bs_hat_list = [embeddings_list[i].var(axis=0) for i in range(len(embeddings_list))]
+        else:
+            sig2bs_hat_list = [np.nan] * len(self.exp_in.qs)
         y_pred = model.predict(X_test, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)
         y_pred = self.processing_fn(y_pred)
         end = time.time()
         runtime = end - start
         metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
         frobenius, spearman, nrmse = np.nan, np.nan, np.nan
-        if self.simulation_mode:
+        if self.simulation_mode and not self.feature_hashing:
             frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
         if self.plot_fn:
             self.plot_fn(self.y_test, y_pred.flatten())

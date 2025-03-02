@@ -11,8 +11,10 @@ ExpInput = namedtuple('ExpInput', ['X_train', 'X_test', 'y_train', 'y_test', 'x_
                                    'n_train', 'n_test', 'pred_unknown', 'qs', 'd', 'sig2e',
                                    'sig2bs', 'y_type', 'k', 'batch', 'epochs', 'patience',
                                    'Z_embed_dim_pct', 'n_sig2bs', 'verbose',
-                                   'n_neurons', 'n_neurons_encoder', 'dropout', 'activation', 'RE_cols_prefix',
-                                   're_sig2b_prior', 'beta_vae', 'log_params', 'mmbeddings_post_training',
+                                   'n_neurons', 'n_neurons_encoder', 'dropout',
+                                   'activation', 'RE_cols_prefix',
+                                   're_sig2b_prior', 'beta_vae', 'hashing_bins',
+                                   'log_params', 'mmbeddings_post_training',
                                    'epochs_post_training', 'patience_post_training'
                                    ])
 
