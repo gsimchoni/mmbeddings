@@ -2,7 +2,7 @@ from itertools import product
 import pandas as pd
 
 from mmbeddings.data import DataSimulator, ExperimentInput
-from mmbeddings.experiments import LMMNN, Embeddings, IgnoreOHE, REbeddings
+from mmbeddings.experiments import LMMNN, Embeddings, Encoding, REbeddings
 from mmbeddings.utils import Count
 
 class Simulation:
@@ -110,10 +110,8 @@ class Simulation:
         Instantiate the experiment.
         exp_type : str - The type of experiment to run.
         """
-        if exp_type == 'ignore':
-            experiment = IgnoreOHE(self.exp_in, ignore_RE=True)
-        elif exp_type == 'ohe':
-            experiment = IgnoreOHE(self.exp_in, ignore_RE=False)
+        if exp_type in ['ignore', 'ohe', 'mean-encoding', 'pca-encoding']:
+            experiment = Encoding(self.exp_in, exp_type)
         elif exp_type == 'embeddings':
             experiment = Embeddings(self.exp_in)
         elif exp_type == 'embeddings-l2':

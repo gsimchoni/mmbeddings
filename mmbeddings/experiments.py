@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.decomposition import PCA
 from sklearn.metrics import roc_auc_score
 from mmbeddings.models.lmmnn.lmmnn import run_lmmnn
 from mmbeddings.models.mlp import MLP
@@ -78,13 +79,10 @@ class Experiment:
         return len(self.exp_in.x_cols)
 
 
-class IgnoreOHE(Experiment):
-    def __init__(self, exp_in, ignore_RE, processing_fn=lambda x: x, plot_fn=None):
-        if ignore_RE:
-            super().__init__(exp_in, 'ignore', MLP, processing_fn, plot_fn)
-        else:
-            super().__init__(exp_in, 'ohe', MLP, processing_fn, plot_fn)
-        self.ignore_RE = ignore_RE
+class Encoding(Experiment):
+    def __init__(self, exp_in, encoding_type, processing_fn=lambda x: x, plot_fn=None):
+        super().__init__(exp_in, encoding_type, MLP, processing_fn, plot_fn)
+        self.encoding_type = encoding_type
     
     def process_one_hot_encoding(self, X_train, X_test, x_cols):
         z_cols = X_train.columns[X_train.columns.str.startswith('z')]
@@ -107,12 +105,97 @@ class IgnoreOHE(Experiment):
             X_train_new = pd.concat([X_train_new, X_train_ohe], axis=1)
             X_test_new = pd.concat([X_test_new, X_test_ohe_comp], axis=1)
         return X_train_new, X_test_new
+    
+    def process_mean_encoding(self, X_train, X_test, x_cols):
+        """
+        For each categorical feature (z columns), compute the mean of each numerical feature (x_cols)
+        in the training data, then map these means to both training and test sets.
+        
+        Args:
+            X_train (pd.DataFrame): Training data with numerical features (x_cols) and categorical features (columns starting with 'z').
+            X_test (pd.DataFrame): Test data with similar columns.
+            x_cols (list): List of names of numerical features.
+        
+        Returns:
+            Tuple of pd.DataFrame: (X_train_new, X_test_new) with the original x_cols and new mean-encoded features.
+        """
+        # Identify the categorical columns (those starting with "z")
+        z_cols = X_train.columns[X_train.columns.str.startswith('z')]
+        
+        # Start with the original numerical features.
+        X_train_new = X_train[x_cols].copy()
+        X_test_new = X_test[x_cols].copy()
+        
+        for z in z_cols:
+            # Compute the means of the x_cols for each group in the training data.
+            group_means = X_train.groupby(z)[x_cols].mean()
+            # Rename the columns to reflect the mean encoding (e.g. "z0_mean_feature1")
+            group_means.rename(columns=lambda c: f"{z}_mean_{c}", inplace=True)
+            
+            # Map the computed group means back onto the training data.
+            for new_col in group_means.columns:
+                X_train_new[new_col] = X_train[z].map(group_means[new_col])
+                # For test data: if a category is not present in training, fill with 0.
+                X_test_new[new_col] = X_test[z].map(group_means[new_col]).fillna(0)
+        
+        return X_train_new, X_test_new
 
+    def process_pca_encoding(self, X_train, X_test, x_cols, n_components=5):
+        """
+        For each categorical feature (z columns), compute the group means over the numerical features (x_cols)
+        in the training data, perform PCA on the resulting (q x p) matrix to reduce it to (q x d) where d = n_components,
+        then map these PCA features back to both training and test data.
+        
+        For any category in the test set that is not present in the training set, the PCA features are filled with 0.
+        
+        Args:
+            X_train (pd.DataFrame): Training data containing numerical features (x_cols) and categorical features (z_cols).
+            X_test (pd.DataFrame): Test data with similar columns.
+            x_cols (list): List of names of numerical features.
+            n_components (int): The number of PCA components to keep (i.e. the target embedding dimension).
+            
+        Returns:
+            Tuple[pd.DataFrame, pd.DataFrame]: The transformed training and test dataframes including the PCA-encoded features.
+        """
+        # Identify categorical columns (those starting with "z")
+        z_cols = X_train.columns[X_train.columns.str.startswith('z')]
+        
+        # Start with the original numerical features
+        X_train_new = X_train[x_cols].copy()
+        X_test_new = X_test[x_cols].copy()
+        
+        for z in z_cols:
+            # Compute the means of the numerical features grouped by the categorical feature in training data.
+            group_means = X_train.groupby(z)[x_cols].mean()  # shape (q, p)
+            
+            # Fit PCA on this group-means matrix
+            pca = PCA(n_components=n_components)
+            group_pca = pca.fit_transform(group_means)  # shape becomes (q, n_components)
+            
+            # Create a DataFrame mapping each category to its PCA components
+            pca_df = pd.DataFrame(group_pca, index=group_means.index, 
+                                columns=[f"{z}_pca_{i}" for i in range(n_components)])
+            
+            # Map the PCA components back to the training data.
+            for i in range(n_components):
+                new_col = f"{z}_pca_{i}"
+                X_train_new[new_col] = X_train[z].map(pca_df[new_col])
+                # For test data: if the category is not present in training, assign 0.
+                X_test_new[new_col] = X_test[z].map(pca_df[new_col]).fillna(0)
+        
+        return X_train_new, X_test_new
+    
     def prepare_input_data(self):
-        if self.ignore_RE:
+        if self.encoding_type == 'ignore':
             X_train, X_test = self.X_train[self.exp_in.x_cols], self.X_test[self.exp_in.x_cols]
-        else:
+        elif self.encoding_type == 'ohe':
             X_train, X_test = self.process_one_hot_encoding(self.X_train, self.X_test, self.exp_in.x_cols)
+        elif self.encoding_type == 'mean-encoding':
+            X_train, X_test = self.process_mean_encoding(self.X_train, self.X_test, self.exp_in.x_cols)
+        elif self.encoding_type == 'pca-encoding':
+            X_train, X_test = self.process_pca_encoding(self.X_train, self.X_test, self.exp_in.x_cols)
+        else:
+            raise ValueError(f'Unsupported encoding type: {self.encoding_type}')
         return X_train, X_test
     
     def get_input_dimension(self, X_train):

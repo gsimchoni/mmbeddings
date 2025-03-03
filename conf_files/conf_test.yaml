@@ -38,6 +38,8 @@ beta_vae_list:
 exp_types:
   - 'ignore'
   - 'ohe'
+  - 'mean-encoding'
+  - 'pca-encoding'
   - 'embeddings'
   - 'embeddings-l2'
   - 'hashing'
