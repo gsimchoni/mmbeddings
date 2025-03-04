@@ -11,6 +11,7 @@ from mmbeddings.models.embeddings import EmbeddingsMLP
 from mmbeddings.models.mmbeddings import MmbeddingsDecoderPostTraining, MmbeddingsVAE
 from mmbeddings.models.mmbeddings2 import MmbeddingsVAE2
 from mmbeddings.models.regbeddings import RegbeddingsMLP
+from mmbeddings.models.tabtransformer import TabTransformerModel
 from mmbeddings.models.tf_tabnet.tabnet import TabNetModel
 from mmbeddings.utils import ExpResult
 from mmbeddings.metrics import calculate_embedding_metrics
@@ -386,8 +387,9 @@ class LMMNN(Experiment):
 
 
 class TabNetExperiment(Experiment):
-    def __init__(self, exp_in, processing_fn=lambda x: x, plot_fn=None):
-        super().__init__(exp_in, 'tabnet', TabNetExperiment, processing_fn, plot_fn)
+    def __init__(self, exp_in, tabnet_type, processing_fn=lambda x: x, plot_fn=None):
+        super().__init__(exp_in, tabnet_type, TabNetExperiment, processing_fn, plot_fn)
+        self.model_class = TabNetModel if tabnet_type == 'tabnet' else TabTransformerModel
 
     def prepare_input_data(self):
         X_train_z_cols = [self.X_train[z_col] for z_col in self.X_train.columns[self.X_train.columns.str.startswith('z')]]
@@ -404,7 +406,7 @@ class TabNetExperiment(Experiment):
         start = time.time()
         X_train, X_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
-        model = TabNetModel(self.exp_in, input_dim, self.last_layer_activation)
+        model = self.model_class(self.exp_in, input_dim, self.last_layer_activation)
         model.compile(loss=self.loss, optimizer='adam')
         history = model.fit_model(X_train, self.y_train)
         sig2bs_hat_list = [np.nan] * len(self.exp_in.qs)

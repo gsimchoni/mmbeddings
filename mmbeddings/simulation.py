@@ -133,7 +133,9 @@ class Simulation:
         elif exp_type == 'mmbeddings-v2':
             experiment = REbeddings(self.exp_in, REbeddings_type='mmbeddings-v2')
         elif exp_type == 'tabnet':
-            experiment = TabNetExperiment(self.exp_in)
+            experiment = TabNetExperiment(self.exp_in, 'tabnet')
+        elif exp_type == 'tabtransformer':
+            experiment = TabNetExperiment(self.exp_in, 'tabtransformer')
         else:
             raise NotImplementedError(f'{exp_type} experiment not implemented.')
         return experiment

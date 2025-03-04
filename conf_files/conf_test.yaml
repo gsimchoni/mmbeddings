@@ -46,5 +46,6 @@ exp_types:
   - 'regbeddings'
   - 'lmmnn'
   - 'tabnet'
+  - 'tabtransformer'
   - 'mmbeddings'
   - 'mmbeddings-v2'
