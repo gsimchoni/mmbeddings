@@ -2,7 +2,7 @@ from itertools import product
 import pandas as pd
 
 from mmbeddings.data import DataSimulator, ExperimentInput
-from mmbeddings.experiments import LMMNN, Embeddings, Encoding, REbeddings
+from mmbeddings.experiments import LMMNN, Embeddings, Encoding, REbeddings, TabNetExperiment
 from mmbeddings.utils import Count
 
 class Simulation:
@@ -132,6 +132,8 @@ class Simulation:
             experiment = LMMNN(self.exp_in)
         elif exp_type == 'mmbeddings-v2':
             experiment = REbeddings(self.exp_in, REbeddings_type='mmbeddings-v2')
+        elif exp_type == 'tabnet':
+            experiment = TabNetExperiment(self.exp_in)
         else:
             raise NotImplementedError(f'{exp_type} experiment not implemented.')
         return experiment

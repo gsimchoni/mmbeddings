@@ -45,5 +45,6 @@ exp_types:
   - 'hashing'
   - 'regbeddings'
   - 'lmmnn'
+  - 'tabnet'
   - 'mmbeddings'
   - 'mmbeddings-v2'

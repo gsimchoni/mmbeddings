@@ -11,6 +11,7 @@ from mmbeddings.models.embeddings import EmbeddingsMLP
 from mmbeddings.models.mmbeddings import MmbeddingsDecoderPostTraining, MmbeddingsVAE
 from mmbeddings.models.mmbeddings2 import MmbeddingsVAE2
 from mmbeddings.models.regbeddings import RegbeddingsMLP
+from mmbeddings.models.tf_tabnet.tabnet import TabNetModel
 from mmbeddings.utils import ExpResult
 from mmbeddings.metrics import calculate_embedding_metrics
 
@@ -382,3 +383,37 @@ class LMMNN(Experiment):
         shuffle = True
         sample_n_train=10000
         return q_spatial,mode,y_type,n_sig2bs_spatial,est_cors,dist_matrix,spatial_embed_neurons,Z_non_linear,shuffle,sample_n_train
+
+
+class TabNetExperiment(Experiment):
+    def __init__(self, exp_in, processing_fn=lambda x: x, plot_fn=None):
+        super().__init__(exp_in, 'tabnet', TabNetExperiment, processing_fn, plot_fn)
+
+    def prepare_input_data(self):
+        X_train_z_cols = [self.X_train[z_col] for z_col in self.X_train.columns[self.X_train.columns.str.startswith('z')]]
+        X_test_z_cols = [self.X_test[z_col] for z_col in self.X_train.columns[self.X_train.columns.str.startswith('z')]]
+        X_train_input = [self.X_train[self.exp_in.x_cols]] + X_train_z_cols
+        X_test_input = [self.X_test[self.exp_in.x_cols]] + X_test_z_cols
+        return X_train_input, X_test_input
+        # return self.X_train, self.X_test
+    
+    def run(self):
+        """
+        Run the experiment, store the results in self.exp_res.
+        """
+        start = time.time()
+        X_train, X_test = self.prepare_input_data()
+        input_dim = self.get_input_dimension(X_train)
+        model = TabNetModel(self.exp_in, input_dim, self.last_layer_activation)
+        model.compile(loss=self.loss, optimizer='adam')
+        history = model.fit_model(X_train, self.y_train)
+        sig2bs_hat_list = [np.nan] * len(self.exp_in.qs)
+        y_pred = model.predict(X_test, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)
+        y_pred = self.processing_fn(y_pred)
+        end = time.time()
+        runtime = end - start
+        metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
+        frobenius, spearman, nrmse = np.nan, np.nan, np.nan
+        if self.plot_fn:
+            self.plot_fn(self.y_test, y_pred.flatten())
+        self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
