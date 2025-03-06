@@ -85,6 +85,7 @@ class DataSimulator:
             ps = fs / fs_sum
             ns = np.random.multinomial(self.N, ps)
             Z_idx = np.repeat(range(q), ns)
+            np.random.shuffle(Z_idx)
             # Z = self.get_dummies(Z_idx, q)
             # ZB_list.append(Z @ B)
             Z_idx_list.append(Z_idx)

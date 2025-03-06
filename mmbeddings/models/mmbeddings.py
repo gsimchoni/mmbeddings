@@ -118,7 +118,7 @@ class MmbeddingsCFDecoder(Model):
         item_vector = tf.convert_to_tensor(item_vector, dtype=tf.float32)
         X_input = tf.convert_to_tensor(X_input, dtype=tf.float32)
         dot_user_item = self.dot_layer([user_vector, item_vector])
-        features_embedding_concat = self.concat([X_input] + [dot_user_item])
+        features_embedding_concat = self.concat([X_input, dot_user_item])
         out_hidden = self.nn(features_embedding_concat)
         output = self.dense_output(out_hidden)
         return output.numpy()
