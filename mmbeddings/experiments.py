@@ -53,10 +53,7 @@ class Experiment:
         input_dim = self.get_input_dimension(X_train)
         model = self.model_class(self.exp_in, input_dim, self.last_layer_activation)
         model.compile(loss=self.loss, optimizer='adam')
-        history = model.fit(X_train, self.y_train,
-                           epochs=self.exp_in.epochs, callbacks=model.callbacks,
-                           batch_size=self.exp_in.batch, validation_split=0.1,
-                           verbose=self.exp_in.verbose)
+        history = model.fit_model(X_train, self.y_train)
         sig2bs_hat_list = [np.nan] * len(self.exp_in.qs)
         y_pred = model.predict(X_test, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)
         y_pred = self.processing_fn(y_pred)
@@ -240,10 +237,7 @@ class Embeddings(Experiment):
         model = EmbeddingsMLP(self.exp_in, input_dim, self.last_layer_activation,
                               self.growth_model, self.l2reg_lambda)
         model.compile(loss=self.loss, optimizer='adam')
-        history = model.fit(X_train, self.y_train,
-                           epochs=self.exp_in.epochs, callbacks=model.callbacks,
-                           batch_size=self.exp_in.batch, validation_split=0.1,
-                           verbose=self.exp_in.verbose)
+        history = model.fit_model(X_train, self.y_train)
         embeddings_list = [embed.get_weights()[0] for embed in model.encoder.embeddings]
         sig2bs_hat_list = [embeddings_list[i].var(axis=0) for i in range(len(embeddings_list))]
         y_pred = model.predict(X_test, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)

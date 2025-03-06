@@ -18,6 +18,13 @@ class BaseModel(Model):
         self.callbacks = [EarlyStopping(
             monitor='val_loss', patience=self.exp_in.epochs if self.exp_in.patience is None else self.exp_in.patience)]
     
+    def fit_model(self, X_train, y_train):
+        history = self.fit(X_train, y_train,
+                           epochs=self.exp_in.epochs, callbacks=self.callbacks,
+                           batch_size=self.exp_in.batch, validation_split=0.1,
+                           verbose=self.exp_in.verbose)
+        return history
+    
     def summarize(self, y_test, y_pred, history, sig2bs_hat_list):
         if self.exp_in.y_type == 'continuous':
             metric = np.mean((y_test - y_pred.reshape(-1)) ** 2)
