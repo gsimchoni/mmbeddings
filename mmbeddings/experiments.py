@@ -13,6 +13,7 @@ from mmbeddings.models.mmbeddings2 import MmbeddingsVAE2
 from mmbeddings.models.regbeddings import RegbeddingsMLP
 from mmbeddings.models.tabtransformer import TabTransformerModel
 from mmbeddings.models.tf_tabnet.tabnet import TabNetModel
+from mmbeddings.models.ncf import NCFModel
 from mmbeddings.utils import ExpResult
 from mmbeddings.metrics import calculate_embedding_metrics
 
@@ -392,6 +393,8 @@ class TrainableEmbeddingExperiment(Experiment):
             return TabTransformerModel
         elif net_type == 'hashing':
             return HashingMLP
+        elif net_type == 'ncf':
+            return NCFModel
         else:
             raise ValueError(f'Unsupported net_type: {net_type}')
     

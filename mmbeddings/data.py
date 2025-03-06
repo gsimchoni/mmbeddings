@@ -111,6 +111,7 @@ class DataSimulator:
         # Define a non-linear function on the input features
         non_linear_term = non_linear_fn10(X, embeddings[0])
         # non_linear_term = growth_model(input_features)
+        # non_linear_term = generate_collaborative_data(X, embeddings, activation='identity')  # uncomment this line to generate collaborative data
 
         # Ensure noise is reshaped to (N, 1) for consistency
         noise = noise.reshape(-1, 1) if noise.ndim == 1 else noise
@@ -301,3 +302,40 @@ def non_linear_fn10(X, B):
     non_linear_term = term1 + term2 + term3 + term4 + term5 + term6 + term7 + term8
 
     return non_linear_term.reshape(-1, 1)
+
+import numpy as np
+
+def generate_collaborative_data(X, embeddings, activation='identity'):
+    """
+    Generates synthetic data for collaborative filtering with regression.
+    
+    Parameters:
+    - X: np.ndarray of shape (n, p), continuous feature matrix.
+    - embeddings: list of two np.ndarrays [(n, d), (n, d)] for users and items.
+    - activation: str, activation function to apply to the dot product.
+    
+    Returns:
+    - y: np.ndarray of shape (n,), continuous response.
+    """
+    users, items = embeddings
+    
+    # Compute dot product between user and item embeddings
+    interaction = np.sum(users * items, axis=1)
+    
+    # Apply non-linearity
+    if activation == 'identity':
+        pass
+    elif activation == 'relu':
+        interaction = np.maximum(0, interaction)
+    elif activation == 'sigmoid':
+        interaction = 1 / (1 + np.exp(-interaction))
+    elif activation == 'tanh':
+        interaction = np.tanh(interaction)
+    else:
+        raise ValueError("Unsupported activation function. Choose from 'relu', 'sigmoid', 'tanh'.")
+
+    # Combine with X
+    feature_contributions = X @ np.random.randn(X.shape[1])  # Linear projection of X
+    y = interaction + feature_contributions  # Final response
+    
+    return y.reshape(-1, 1)

@@ -130,12 +130,8 @@ class Simulation:
             experiment = LMMNN(self.exp_in)
         elif exp_type == 'mmbeddings-v2':
             experiment = REbeddings(self.exp_in, REbeddings_type='mmbeddings-v2')
-        elif exp_type == 'tabnet':
-            experiment = TrainableEmbeddingExperiment(self.exp_in, 'tabnet')
-        elif exp_type == 'tabtransformer':
-            experiment = TrainableEmbeddingExperiment(self.exp_in, 'tabtransformer')
-        elif exp_type == 'hashing':
-            experiment = TrainableEmbeddingExperiment(self.exp_in, 'hashing')
+        elif exp_type in ['tabnet', 'tabtransformer', 'hashing', 'ncf']:
+            experiment = TrainableEmbeddingExperiment(self.exp_in, exp_type)
         else:
             raise NotImplementedError(f'{exp_type} experiment not implemented.')
         return experiment
