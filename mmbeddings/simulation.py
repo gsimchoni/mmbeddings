@@ -122,6 +122,8 @@ class Simulation:
             experiment = REbeddings(self.exp_in, REbeddings_type='mmbeddings')
         elif exp_type == 'mmbeddings_growth_model':
             experiment = REbeddings(self.exp_in, REbeddings_type='mmbeddings', growth_model=True)
+        elif exp_type == 'mmcf':
+            experiment = REbeddings(self.exp_in, REbeddings_type='mmbeddings', cf=True)
         elif exp_type == 'regbeddings':
             experiment = REbeddings(self.exp_in, REbeddings_type='regbeddings')
         elif exp_type == 'regbeddings_growth_model':

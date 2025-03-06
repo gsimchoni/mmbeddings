@@ -1,5 +1,6 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Embedding, Dense, Dot
+from tensorflow.keras.layers import Embedding, Dense, Dot, Concatenate
+from mmbeddings.models.utils import build_coder
 from tensorflow.keras.regularizers import l2
 from mmbeddings.models.base_model import BaseModel
 
@@ -36,8 +37,9 @@ class NCFModel(BaseModel):
         )
         self.item_bias = Embedding(self.num_items, 1)
         self.dot_layer = Dot(axes=2)
-        self.combined_dense = Dense(64, activation="relu", name="combined_dense")
-        self.out_dense = Dense(1, activation=self.last_layer_activation, name="output")
+        self.concat = Concatenate()
+        self.nn = build_coder(input_dim + 1, self.exp_in.n_neurons, self.exp_in.dropout, self.exp_in.activation)
+        self.dense_output = Dense(1, activation=self.last_layer_activation, name="output")
         
     def call(self, inputs):
         """
@@ -57,8 +59,8 @@ class NCFModel(BaseModel):
         dot_user_item = self.dot_layer([user_vector, item_vector])  # Shape: (batch_size, 1, 1)
         dot_user_item = tf.squeeze(dot_user_item, axis=-1)
         cat_out = dot_user_item + user_bias + item_bias
-        combined = tf.concat([X_input, cat_out], axis=-1)
-        x = self.combined_dense(combined)
-        output = self.out_dense(x)
+        features_embedding_concat = self.concat([X_input, cat_out])
+        out_hidden = self.nn(features_embedding_concat)
+        output = self.dense_output(out_hidden)
         return output
     

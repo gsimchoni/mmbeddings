@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
-from tensorflow.keras.layers import Concatenate, Dense, Layer
+from tensorflow.keras.layers import Concatenate, Dense, Dot, Layer
 from tensorflow.keras.models import Model
 from packaging import version
 import tensorflow as tf
@@ -86,6 +86,44 @@ class MmbeddingsDecoder(Model):
         return output.numpy()
 
 
+class MmbeddingsCFDecoder(Model):
+    """"""
+
+    def __init__(self, exp_in, input_dim, last_layer_activation, name="decoder", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.exp_in = exp_in
+        self.input_dim = input_dim
+        self.qs = self.exp_in.qs
+        self.n_RE_inputs = len(self.exp_in.qs)
+        self.n_neurons = self.exp_in.n_neurons
+        self.dropout = self.exp_in.dropout
+        self.nn = build_coder(input_dim, self.n_neurons, self.dropout, self.exp_in.activation)
+        # self.nn = build_coder(input_dim, [100, 50, 25, 12], [0.25, 0.25, 0.25], self.exp_in.activation)
+        self.dot_layer = Dot(axes=1)
+        self.concat = Concatenate()
+        self.dense_output = Dense(1, activation=last_layer_activation)
+
+    def call(self, X_input, Z_inputs, mmbeddings_list):
+        user_vector = compute_category_embedding(Z_inputs[0], mmbeddings_list[0], self.qs[0])
+        item_vector = compute_category_embedding(Z_inputs[1], mmbeddings_list[1], self.qs[1])
+        dot_user_item = self.dot_layer([user_vector, item_vector])  # Shape: (batch_size, 1)
+        features_embedding_concat = self.concat([X_input, dot_user_item])
+        out_hidden = self.nn(features_embedding_concat)
+        output = self.dense_output(out_hidden)
+        return output
+    
+    def predict_with_custom_B(self, X_input, embeddings):
+        user_vector, item_vector = embeddings
+        user_vector = tf.convert_to_tensor(user_vector, dtype=tf.float32)
+        item_vector = tf.convert_to_tensor(item_vector, dtype=tf.float32)
+        X_input = tf.convert_to_tensor(X_input, dtype=tf.float32)
+        dot_user_item = self.dot_layer([user_vector, item_vector])
+        features_embedding_concat = self.concat([X_input] + [dot_user_item])
+        out_hidden = self.nn(features_embedding_concat)
+        output = self.dense_output(out_hidden)
+        return output.numpy()
+
+
 class MmbeddingsDecoderGrowthModel(Layer):
     """"""
 
@@ -134,7 +172,7 @@ class MmbeddingsDecoderGrowthModel(Layer):
 
 
 class MmbeddingsVAE(Model):
-    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model=False):
+    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model=False, cf=False):
         """
         MLP-based VAE model for mmbeddings.
         """
@@ -142,14 +180,17 @@ class MmbeddingsVAE(Model):
         self.exp_in = exp_in
         self.input_dim = input_dim
         self.encoder = MmbeddingsEncoder(exp_in, input_dim)
-        if growth_model:
-            decoder_class = MmbeddingsDecoderGrowthModel
-        else:
-            decoder_class = MmbeddingsDecoder
         self.d = self.exp_in.d
         self.qs = self.exp_in.qs
         self.n_RE_inputs = len(self.exp_in.qs)
         decoder_input_dim = self.input_dim + self.d * self.n_RE_inputs
+        if growth_model:
+            decoder_class = MmbeddingsDecoderGrowthModel
+        elif cf:
+            decoder_class = MmbeddingsCFDecoder
+            decoder_input_dim = self.input_dim + 1
+        else:
+            decoder_class = MmbeddingsDecoder
         self.decoder = decoder_class(exp_in, decoder_input_dim, last_layer_activation)
         self.re_log_sig2b_prior = tf.constant(np.log(self.exp_in.re_sig2b_prior, dtype=np.float32))
         self.beta = self.exp_in.beta_vae

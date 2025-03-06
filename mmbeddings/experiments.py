@@ -255,9 +255,10 @@ class Embeddings(Experiment):
 
 
 class REbeddings(Experiment):
-    def __init__(self, exp_in, REbeddings_type, processing_fn=lambda x: x, plot_fn=None, growth_model=False, simulation_mode=True):
+    def __init__(self, exp_in, REbeddings_type, processing_fn=lambda x: x, plot_fn=None, growth_model=False, cf=False, simulation_mode=True):
         super().__init__(exp_in, REbeddings_type, REbeddings, processing_fn, plot_fn)
         self.growth_model = growth_model
+        self.cf = cf
         self.RE_cols = self.get_RE_cols_by_prefix(self.X_train, self.exp_in.RE_cols_prefix)
         self.diverse_batches = False
         self.simulation_mode = simulation_mode
@@ -275,7 +276,7 @@ class REbeddings(Experiment):
             self.diversify_batches()
         X_train, Z_train, X_test, Z_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
-        model = self.model_class(self.exp_in, input_dim, self.last_layer_activation, self.growth_model)
+        model = self.model_class(self.exp_in, input_dim, self.last_layer_activation, self.growth_model, self.cf)
         model.compile(optimizer='adam')
         history = model.fit_model(X_train, Z_train, self.y_train, shuffle=not self.diverse_batches)
         embeddings_list, sig2bs_hat_list = model.predict_embeddings(X_train, Z_train, self.y_train)
