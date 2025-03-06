@@ -1,11 +1,7 @@
-import numpy as np
-from sklearn.metrics import roc_auc_score
 import tensorflow as tf
-from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.layers import Add, Concatenate, Dense, Flatten, Layer, LayerNormalization, MultiHeadAttention
-from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Add, Dense, Flatten, Layer, LayerNormalization, MultiHeadAttention, Embedding
 
-from mmbeddings.models.embeddings import Embedding
+from mmbeddings.models.base_model import BaseModel
 
 class TransformerBlock(Layer):
     def __init__(self, head_size, num_heads, ff_dim, dropout=0.1, **kwargs):
@@ -37,7 +33,7 @@ class TransformerBlock(Layer):
         return x
 
 # --- TabTransformer Model Definition Following Keras Example ---
-class TabTransformerModel(Model):
+class TabTransformerModel(BaseModel):
     def __init__(self, exp_in, input_dim, last_layer_activation, **kwargs):
         """
         Parameters:
@@ -49,11 +45,10 @@ class TabTransformerModel(Model):
           input_dim: unused
           last_layer_activation: activation for the final output.
         """
-        super().__init__(**kwargs)
+        super(TabTransformerModel, self).__init__(exp_in, **kwargs)
         self.exp_in = exp_in
         self.last_layer_activation = last_layer_activation
         self.d = exp_in.d  # latent dimension for embeddings
-        self.callbacks = [EarlyStopping(monitor='val_loss', patience=self.exp_in.epochs if self.exp_in.patience is None else self.exp_in.patience)]
 
         # Continuous branch: simply apply LayerNormalization.
         self.cont_norm = LayerNormalization(epsilon=1e-6, name="cont_norm")
@@ -133,23 +128,3 @@ class TabTransformerModel(Model):
         output = self.out_dense(x)
         return output
     
-    def fit_model(self, X_train, y_train):
-        history = self.fit(X_train, y_train,
-                           epochs=self.exp_in.epochs, callbacks=self.callbacks,
-                           batch_size=self.exp_in.batch, validation_split=0.1,
-                           verbose=self.exp_in.verbose)
-        return history
-    
-    def summarize(self, y_test, y_pred, history, sig2bs_hat_list):
-        if self.exp_in.y_type == 'continuous':
-            metric = np.mean((y_test - y_pred.reshape(-1)) ** 2)
-        elif self.exp_in.y_type == 'binary':
-            metric = roc_auc_score(y_test, y_pred)
-        else:
-            raise ValueError(f'Unsupported y_type: {self.exp_in.y_type}')
-        sig2bs_mean_est = [np.mean(sig2bs) for sig2bs in sig2bs_hat_list]
-        sigmas = [np.nan, sig2bs_mean_est]
-        nll_tr, nll_te = np.nan, np.nan
-        n_epochs = len(history.history['loss'])
-        n_params = self.count_params()
-        return metric, sigmas, nll_tr, nll_te, n_epochs, n_params

@@ -7,7 +7,7 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import roc_auc_score
 from mmbeddings.models.lmmnn.lmmnn import run_lmmnn
 from mmbeddings.models.mlp import MLP
-from mmbeddings.models.embeddings import EmbeddingsMLP
+from mmbeddings.models.embeddings import EmbeddingsMLP, HashingMLP
 from mmbeddings.models.mmbeddings import MmbeddingsDecoderPostTraining, MmbeddingsVAE
 from mmbeddings.models.mmbeddings2 import MmbeddingsVAE2
 from mmbeddings.models.regbeddings import RegbeddingsMLP
@@ -51,14 +51,18 @@ class Experiment:
         start = time.time()
         X_train, X_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
-        model = self.model_class(self.exp_in, input_dim, self.loss, self.last_layer_activation)
-        model.build()
-        history = model.fit(X_train, self.y_train)
-        y_pred = model.predict(X_test)
+        model = self.model_class(self.exp_in, input_dim, self.last_layer_activation)
+        model.compile(loss=self.loss, optimizer='adam')
+        history = model.fit(X_train, self.y_train,
+                           epochs=self.exp_in.epochs, callbacks=model.callbacks,
+                           batch_size=self.exp_in.batch, validation_split=0.1,
+                           verbose=self.exp_in.verbose)
+        sig2bs_hat_list = [np.nan] * len(self.exp_in.qs)
+        y_pred = model.predict(X_test, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)
         y_pred = self.processing_fn(y_pred)
         end = time.time()
         runtime = end - start
-        metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history)
+        metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
         frobenius, spearman, nrmse = np.nan, np.nan, np.nan
         if self.plot_fn:
             self.plot_fn(self.y_test, y_pred.flatten())
@@ -81,7 +85,7 @@ class Experiment:
         return len(self.exp_in.x_cols)
 
 
-class Encoding(Experiment):
+class PrecomputedEmbeddingExperiment(Experiment):
     def __init__(self, exp_in, encoding_type, processing_fn=lambda x: x, plot_fn=None):
         super().__init__(exp_in, encoding_type, MLP, processing_fn, plot_fn)
         self.encoding_type = encoding_type
@@ -205,19 +209,15 @@ class Encoding(Experiment):
 
 class Embeddings(Experiment):
     def __init__(self, exp_in, processing_fn=lambda x: x, plot_fn=None,
-                 growth_model=False, l2reg_lambda=None, feature_hashing=False,
-                 simulation_mode=True):
-        exp_name = self.determine_exp_name(l2reg_lambda, feature_hashing)
+                 growth_model=False, l2reg_lambda=None, simulation_mode=True):
+        exp_name = self.determine_exp_name(l2reg_lambda)
         super().__init__(exp_in, exp_name, Embeddings, processing_fn, plot_fn)
         self.growth_model = growth_model
         self.l2reg_lambda = l2reg_lambda
         self.simulation_mode = simulation_mode
-        self.feature_hashing = feature_hashing
 
-    def determine_exp_name(self, l2reg_lambda, feature_hashing):
-        if feature_hashing:
-            exp_name = 'hashing'
-        elif l2reg_lambda is None:
+    def determine_exp_name(self, l2reg_lambda):
+        if l2reg_lambda is None:
             exp_name = 'embeddings'
         else:
             exp_name = 'embeddings-l2'
@@ -238,21 +238,21 @@ class Embeddings(Experiment):
         X_train, X_test = self.prepare_input_data()
         input_dim = self.get_input_dimension(X_train)
         model = EmbeddingsMLP(self.exp_in, input_dim, self.last_layer_activation,
-                              self.growth_model, self.l2reg_lambda, self.feature_hashing)
+                              self.growth_model, self.l2reg_lambda)
         model.compile(loss=self.loss, optimizer='adam')
-        history = model.fit_model(X_train, self.y_train)
-        if not self.feature_hashing:
-            embeddings_list = [embed.get_weights()[0] for embed in model.encoder.embeddings]
-            sig2bs_hat_list = [embeddings_list[i].var(axis=0) for i in range(len(embeddings_list))]
-        else:
-            sig2bs_hat_list = [np.nan] * len(self.exp_in.qs)
+        history = model.fit(X_train, self.y_train,
+                           epochs=self.exp_in.epochs, callbacks=model.callbacks,
+                           batch_size=self.exp_in.batch, validation_split=0.1,
+                           verbose=self.exp_in.verbose)
+        embeddings_list = [embed.get_weights()[0] for embed in model.encoder.embeddings]
+        sig2bs_hat_list = [embeddings_list[i].var(axis=0) for i in range(len(embeddings_list))]
         y_pred = model.predict(X_test, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)
         y_pred = self.processing_fn(y_pred)
         end = time.time()
         runtime = end - start
         metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
         frobenius, spearman, nrmse = np.nan, np.nan, np.nan
-        if self.simulation_mode and not self.feature_hashing:
+        if self.simulation_mode:
             frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
         if self.plot_fn:
             self.plot_fn(self.y_test, y_pred.flatten())
@@ -386,36 +386,25 @@ class LMMNN(Experiment):
         return q_spatial,mode,y_type,n_sig2bs_spatial,est_cors,dist_matrix,spatial_embed_neurons,Z_non_linear,shuffle,sample_n_train
 
 
-class TabNetExperiment(Experiment):
-    def __init__(self, exp_in, tabnet_type, processing_fn=lambda x: x, plot_fn=None):
-        super().__init__(exp_in, tabnet_type, TabNetExperiment, processing_fn, plot_fn)
-        self.model_class = TabNetModel if tabnet_type == 'tabnet' else TabTransformerModel
+class TrainableEmbeddingExperiment(Experiment):
+    def __init__(self, exp_in, net_type, processing_fn=lambda x: x, plot_fn=None):
+        super().__init__(exp_in, net_type, TrainableEmbeddingExperiment, processing_fn, plot_fn)
+        self.model_class = self.determine_model_class(net_type)
 
+    def determine_model_class(self, net_type):
+        if net_type == 'tabnet':
+            return TabNetModel
+        elif net_type == 'tabtransformer':
+            return TabTransformerModel
+        elif net_type == 'hashing':
+            return HashingMLP
+        else:
+            raise ValueError(f'Unsupported net_type: {net_type}')
+    
     def prepare_input_data(self):
         X_train_z_cols = [self.X_train[z_col] for z_col in self.X_train.columns[self.X_train.columns.str.startswith('z')]]
         X_test_z_cols = [self.X_test[z_col] for z_col in self.X_train.columns[self.X_train.columns.str.startswith('z')]]
         X_train_input = [self.X_train[self.exp_in.x_cols]] + X_train_z_cols
         X_test_input = [self.X_test[self.exp_in.x_cols]] + X_test_z_cols
         return X_train_input, X_test_input
-        # return self.X_train, self.X_test
     
-    def run(self):
-        """
-        Run the experiment, store the results in self.exp_res.
-        """
-        start = time.time()
-        X_train, X_test = self.prepare_input_data()
-        input_dim = self.get_input_dimension(X_train)
-        model = self.model_class(self.exp_in, input_dim, self.last_layer_activation)
-        model.compile(loss=self.loss, optimizer='adam')
-        history = model.fit_model(X_train, self.y_train)
-        sig2bs_hat_list = [np.nan] * len(self.exp_in.qs)
-        y_pred = model.predict(X_test, verbose=self.exp_in.verbose, batch_size=self.exp_in.batch)
-        y_pred = self.processing_fn(y_pred)
-        end = time.time()
-        runtime = end - start
-        metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
-        frobenius, spearman, nrmse = np.nan, np.nan, np.nan
-        if self.plot_fn:
-            self.plot_fn(self.y_test, y_pred.flatten())
-        self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)

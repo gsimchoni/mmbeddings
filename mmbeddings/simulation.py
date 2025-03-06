@@ -2,7 +2,7 @@ from itertools import product
 import pandas as pd
 
 from mmbeddings.data import DataSimulator, ExperimentInput
-from mmbeddings.experiments import LMMNN, Embeddings, Encoding, REbeddings, TabNetExperiment
+from mmbeddings.experiments import LMMNN, Embeddings, PrecomputedEmbeddingExperiment, REbeddings, TrainableEmbeddingExperiment
 from mmbeddings.utils import Count
 
 class Simulation:
@@ -111,13 +111,11 @@ class Simulation:
         exp_type : str - The type of experiment to run.
         """
         if exp_type in ['ignore', 'ohe', 'mean-encoding', 'pca-encoding']:
-            experiment = Encoding(self.exp_in, exp_type)
+            experiment = PrecomputedEmbeddingExperiment(self.exp_in, exp_type)
         elif exp_type == 'embeddings':
             experiment = Embeddings(self.exp_in)
         elif exp_type == 'embeddings-l2':
             experiment = Embeddings(self.exp_in, l2reg_lambda=0.1)
-        elif exp_type == 'hashing':
-            experiment = Embeddings(self.exp_in, feature_hashing=True)
         elif exp_type == 'embeddings_growth_model':
             experiment = Embeddings(self.exp_in, growth_model=True)
         elif exp_type == 'mmbeddings':
@@ -133,9 +131,11 @@ class Simulation:
         elif exp_type == 'mmbeddings-v2':
             experiment = REbeddings(self.exp_in, REbeddings_type='mmbeddings-v2')
         elif exp_type == 'tabnet':
-            experiment = TabNetExperiment(self.exp_in, 'tabnet')
+            experiment = TrainableEmbeddingExperiment(self.exp_in, 'tabnet')
         elif exp_type == 'tabtransformer':
-            experiment = TabNetExperiment(self.exp_in, 'tabtransformer')
+            experiment = TrainableEmbeddingExperiment(self.exp_in, 'tabtransformer')
+        elif exp_type == 'hashing':
+            experiment = TrainableEmbeddingExperiment(self.exp_in, 'hashing')
         else:
             raise NotImplementedError(f'{exp_type} experiment not implemented.')
         return experiment
