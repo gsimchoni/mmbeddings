@@ -62,11 +62,12 @@ class RegbeddingsMLP(Model):
         self.d = self.exp_in.d
         self.qs = self.exp_in.qs
         self.encoder = RegbeddingsEncoder(self.qs, self.d)
+        self.n_RE_inputs = len(self.exp_in.qs)
+        decoder_input_dim = self.input_dim + self.d * self.n_RE_inputs
         if growth_model:
             self.decoder = EmbeddingsDecoderGrowthModel()
         else:
-            self.decoder = EmbeddingsDecoder(exp_in, self.input_dim, last_layer_activation)
-        self.n_RE_inputs = len(self.exp_in.qs)
+            self.decoder = EmbeddingsDecoder(exp_in, decoder_input_dim, last_layer_activation)
         self.re_log_sig2b_prior = tf.constant(np.log(self.exp_in.re_sig2b_prior, dtype=np.float32))
         self.beta = self.exp_in.beta_vae
         self.callbacks = [EarlyStopping(
