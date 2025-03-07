@@ -227,13 +227,13 @@ class MmbeddingsVAE(Model):
                 re_kl_loss = re_kl_loss_i
             else:
                 re_kl_loss += re_kl_loss_i
-            if self.exp_in.y_type == 'continuous':
-                # log_lik = 0.5 * K.sum(K.square(y_input - y_pred)) / self.exp_in.batch
-                log_lik = 0.5 * MeanSquaredError()(y_input, y_pred)
-            elif self.exp_in.y_type == 'binary':
-                log_lik = BinaryCrossentropy()(y_input, y_pred)
-            else:
-                raise ValueError(f'Unsupported y_type: {self.exp_in.y_type}')
+        if self.exp_in.y_type == 'continuous':
+            # log_lik = 0.5 * K.sum(K.square(y_input - y_pred)) / self.exp_in.batch
+            log_lik = 0.5 * MeanSquaredError()(y_input, y_pred)
+        elif self.exp_in.y_type == 'binary':
+            log_lik = BinaryCrossentropy()(y_input, y_pred)
+        else:
+            raise ValueError(f'Unsupported y_type: {self.exp_in.y_type}')
         self.add_loss(self.beta * re_kl_loss)
         self.add_loss(log_lik)
         self.add_metric(log_lik, name='log_loss')
