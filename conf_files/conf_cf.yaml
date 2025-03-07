@@ -54,3 +54,4 @@ exp_types:
   - 'mmbeddings'
   - 'mmbeddings-v2'
   - 'ncf'
+  - 'mmcf'
