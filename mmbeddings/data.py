@@ -110,6 +110,7 @@ class DataSimulator:
         # input_features = np.hstack([X, embeddings_concat])  # N x (p + K * d)
 
         # Define a non-linear function on the input features
+        # non_linear_term = non_linear_fn10(X, embeddings[0]) + non_linear_fn10(X, embeddings[1])
         non_linear_term = non_linear_fn10(X, embeddings[0])
         # non_linear_term = growth_model(input_features)
         # non_linear_term = generate_collaborative_data(X, embeddings, activation='identity')  # uncomment this line to generate collaborative data
@@ -235,8 +236,8 @@ def non_linear_fn7(input_features):
     output = np.dot(input_features, W) + b
     return np.maximum(0, output[:, 0]).reshape(-1, 1)  # ReLU activation on the first neuron
 
-def non_linear_fn8(X, embeddings_concat, d):
-    betas = np.ones(d)
+def non_linear_fn8(X, embeddings_concat, n_RE, d):
+    betas = np.ones(n_RE * d)
     Bbeta = embeddings_concat @ betas
     fB = Bbeta * np.cos(Bbeta) + 2 * embeddings_concat[:, 0] * embeddings_concat[:, 1]
     non_linear_term = non_linear_fn0(X) + fB.reshape(-1, 1)
