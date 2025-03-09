@@ -27,6 +27,9 @@ class Simulation:
         self.pred_unknown_clusters = params.get('pred_unknown_clusters', False)
         self.exp_types = params['exp_types']
         self.verbose = params.get('verbose', False)
+        self.results = []
+        self.metric_name = self.get_metric_name(params['y_type'])
+        self.dtype_dict = self.get_dtype_dict()
 
     def run(self):
         """
@@ -50,7 +53,7 @@ class Simulation:
                                                         sig2e, sig2bs, k, self.n_sig2bs, self.params).get()
                                 self.iterate_experiment_types()
 
-    def get_dtype_dict(self, metric):
+    def get_dtype_dict(self):
         dtype_dict = {
             'n_train': 'int64',
             'n_test': 'int64',
@@ -60,7 +63,7 @@ class Simulation:
             'beta': 'float64',
             'experiment': 'int64',
             'exp_type': 'object',
-            metric: 'float64',
+            self.metric_name: 'float64',
             'frobenius': 'float64',
             'spearman': 'float64',
             'nrmse': 'float64',
@@ -121,7 +124,7 @@ class Simulation:
             **{name: val for name, val in zip(self.qs_names, self.exp_in.qs)},  # Expands qs
             'experiment': self.exp_in.k,
             'exp_type': exp_type,
-            'mse' if 'mse' in self.get_dtype_dict('mse') else 'auc': self.exp_res.metric,  # Dynamic metric
+            self.metric_name: self.exp_res.metric,
             'frobenius': self.exp_res.frobenius,
             'spearman': self.exp_res.spearman,
             'nrmse': self.exp_res.nrmse,
@@ -141,16 +144,13 @@ class Simulation:
         """
         Iterate through experiment types and run them on the data.
         """
-        results = []
-        metric = self.get_metric_name(self.exp_in.y_type)
         for exp_type in self.exp_types:
             if self.verbose:
                 self.logger.info(f'experiment: {exp_type}')
             experiment = self.get_experiment(exp_type)
             experiment.run()
             self.exp_res = experiment.exp_res
-            results.append(self.summarize(exp_type))
+            self.results.append(self.summarize(exp_type))
             self.logger.debug(f'  Finished {exp_type}.')
-        dtype_dict = self.get_dtype_dict(metric)
-        self.res_df = pd.DataFrame(results).astype(dtype_dict)
+        self.res_df = pd.DataFrame(self.results).astype(self.dtype_dict)
         self.res_df.to_csv(self.out_file, float_format='%.6g')
