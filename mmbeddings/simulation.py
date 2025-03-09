@@ -16,7 +16,6 @@ class Simulation:
         self.out_file = out_file
         self.params = params
         self.logger = logger
-        self.counter = Count().gen()
         self.n_iter = params.get('n_iter', 5)
         self.n_sig2bs = len(params['sig2b_list'])
         self.n_categorical = len(params['q_list'])
@@ -33,9 +32,6 @@ class Simulation:
         """
         Run the full simulation.
         """
-        # Create an empty results DataFrame
-        self.res_df = self.create_res_df()
-
         for n_train in self.params['n_train_list']:
             for sig2e in self.params['sig2e_list']:
                 for qs in product(*self.params['q_list']):
@@ -75,35 +71,9 @@ class Simulation:
             'time': 'float64',
             'n_params': 'int64'
         }
-        for k in self.sig2bs_names + self.sig2bs_est_names:
-            dtype_dict[k] = 'float64'
-
-        for k in self.qs_names:
-            dtype_dict[k] = 'int64'
+        dtype_dict.update({k: 'float64' for k in self.sig2bs_names + self.sig2bs_est_names})
+        dtype_dict.update({k: 'int64' for k in self.qs_names})
         return dtype_dict
-    
-    def create_res_df(self):
-        """
-        Create an empty simulation results DataFrame.
-
-        Returns:
-        pd.DataFrame - An empty DataFrame for storing simulation results.
-        """
-        y_type = self.params.get('y_type', 'continuous')
-        if y_type == 'continuous':
-            metric = 'mse'
-        elif y_type == 'binary':
-            metric = 'auc'
-        else:
-            raise ValueError(f'Unsupported y_type: {y_type}')
-        res_df = pd.DataFrame(columns=['n_train', 'n_test', 'batch', 'pred_unknown', 'sig2e', 'beta'] +\
-                              self.sig2bs_names + self.qs_names +\
-                                ['experiment', 'exp_type', metric, 'frobenius', 'spearman', 'nrmse', 'sig2e_est'] +\
-                                    self.sig2bs_est_names +\
-                                        ['nll_train', 'nll_test', 'n_epochs', 'time', 'n_params'])
-        dtype_dict = self.get_dtype_dict(metric)
-        res_df = res_df.astype(dtype_dict)
-        return res_df
     
     def get_experiment(self, exp_type):
         """
@@ -137,17 +107,50 @@ class Simulation:
         else:
             raise NotImplementedError(f'{exp_type} experiment not implemented.')
         return experiment
+    
+    def summarize(self, exp_type):
+        """Summarize the results of the experiment."""
+        return {
+            'n_train': self.exp_in.n_train,
+            'n_test': self.exp_in.n_test,
+            'batch': self.exp_in.batch,
+            'pred_unknown': self.exp_in.pred_unknown,
+            'sig2e': self.exp_in.sig2e,
+            'beta': self.exp_in.beta_vae,
+            **{name: val for name, val in zip(self.sig2bs_names, self.exp_in.sig2bs)},  # Automatically expands sig2bs
+            **{name: val for name, val in zip(self.qs_names, self.exp_in.qs)},  # Expands qs
+            'experiment': self.exp_in.k,
+            'exp_type': exp_type,
+            'mse' if 'mse' in self.get_dtype_dict('mse') else 'auc': self.exp_res.metric,  # Dynamic metric
+            'frobenius': self.exp_res.frobenius,
+            'spearman': self.exp_res.spearman,
+            'nrmse': self.exp_res.nrmse,
+            'sig2e_est': self.exp_res.sigmas[0],
+            **{name: val for name, val in zip(self.sig2bs_est_names, self.exp_res.sigmas[1])},
+            'nll_train': self.exp_res.nll_tr,
+            'nll_test': self.exp_res.nll_te,
+            'n_epochs': self.exp_res.n_epochs,
+            'time': self.exp_res.time,
+            'n_params': self.exp_res.n_params,
+        }
 
+    def get_metric_name(self, y_type):
+        return 'mse' if y_type == 'continuous' else 'auc' if y_type == 'binary' else ValueError(f'Unsupported y_type: {y_type}')
+    
     def iterate_experiment_types(self):
         """
         Iterate through experiment types and run them on the data.
         """
+        results = []
+        metric = self.get_metric_name(self.exp_in.y_type)
         for exp_type in self.exp_types:
             if self.verbose:
                 self.logger.info(f'experiment: {exp_type}')
             experiment = self.get_experiment(exp_type)
             experiment.run()
-            res_summary = experiment.summarize()
-            self.res_df.loc[next(self.counter)] = res_summary
+            self.exp_res = experiment.exp_res
+            results.append(self.summarize(exp_type))
             self.logger.debug(f'  Finished {exp_type}.')
+        dtype_dict = self.get_dtype_dict(metric)
+        self.res_df = pd.DataFrame(results).astype(dtype_dict)
         self.res_df.to_csv(self.out_file, float_format='%.6g')

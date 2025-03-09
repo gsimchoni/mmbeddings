@@ -65,19 +65,6 @@ class Experiment:
         if self.plot_fn:
             self.plot_fn(self.y_test, y_pred.flatten())
         self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
-
-    def summarize(self):
-        """
-        Summarize the results of the experiment.
-        """
-        res_summary = [self.exp_in.n_train, self.exp_in.n_test, self.exp_in.batch] +\
-            [self.exp_in.pred_unknown, self.exp_in.sig2e, self.exp_in.beta_vae] +\
-            list(self.exp_in.sig2bs) + list(self.exp_in.qs) +\
-            [self.exp_in.k, self.exp_type, self.exp_res.metric] +\
-            [self.exp_res.frobenius, self.exp_res.spearman, self.exp_res.nrmse, self.exp_res.sigmas[0]] +\
-            self.exp_res.sigmas[1] + [self.exp_res.nll_tr, self.exp_res.nll_te] + \
-                [self.exp_res.n_epochs, self.exp_res.time, self.exp_res.n_params]
-        return res_summary
     
     def get_input_dimension(self, X_train):
         return len(self.exp_in.x_cols)
