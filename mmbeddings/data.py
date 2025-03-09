@@ -41,7 +41,7 @@ class DataSimulator:
         y = self.calculate_y(X, B_list, Z_idx_list, noise)
         df, x_cols = self.create_df(X, Z_idx_list, y)
         X_train, X_test, y_train, y_test = self.split_data(df)
-        return ExpData(X_train, X_test, y_train, y_test, x_cols, B_list)
+        return ExpData(X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test, x_cols=x_cols, B_true_list=B_list)
 
     def sample_fe(self):
         """Sample fixed effects."""
@@ -159,7 +159,7 @@ class ExperimentInput:
     def __init__(self, exp_data, n_train, n_test, pred_unknown_clusters, qs, d, sig2e, sig2bs, k, n_sig2bs, params):
         """
         Parameters:
-        exp_data : namedtuple - Experiment data namedtuple.
+        exp_data : dataclass - Experiment data class.
         n_train : int - Total number of training samples.
         n_test : int - Total number of testing samples.
         pred_unknown_clusters : bool - Whether to predict unknown clusters during testing.
@@ -183,18 +183,23 @@ class ExperimentInput:
         self.params = params
 
     def get(self):
-        """Return an ExpInput namedtuple."""
-        return ExpInput(*self.exp_data, self.n_train, self.n_test, self.pred_unknown_clusters, self.qs, self.d, self.sig2e,
-                        self.sig2bs, self.params['y_type'], self.k, self.params['batch'], self.params['epochs'], self.params['patience'],
-                        self.params['Z_embed_dim_pct'], self.n_sig2bs, self.params['verbose'], self.params['n_neurons'],
-                        self.params.get('n_neurons_encoder', self.params['n_neurons']),
-                        self.params['dropout'], self.params['activation'], self.params['RE_cols_prefix'],
-                        self.params['re_sig2b_prior'], self.params['beta_vae'],
-                        self.params.get('hashing_bins', 2**10),
-                        self.params['log_params'],
-                        self.params.get('mmbeddings_post_training', True),
-                        self.params.get('epochs_post_training', self.params['epochs']),
-                        self.params.get('patience_post_training', self.params['patience']))
+        """Return an ExpInput dataclass."""
+        exp = ExpInput(
+            X_train=self.exp_data.X_train, X_test=self.exp_data.X_test, y_train=self.exp_data.y_train, y_test=self.exp_data.y_test,
+            x_cols=self.exp_data.x_cols, B_true_list=self.exp_data.B_true_list,
+            n_train=self.n_train, n_test=self.n_test, pred_unknown=self.pred_unknown_clusters, qs=self.qs, d=self.d,
+            sig2e=self.sig2e, sig2bs=self.sig2bs, y_type=self.params['y_type'], k=self.k, batch=self.params['batch'],
+            epochs=self.params['epochs'], patience=self.params['patience'], Z_embed_dim_pct=self.params['Z_embed_dim_pct'],
+            n_sig2bs=self.n_sig2bs, verbose=self.params['verbose'], n_neurons=self.params['n_neurons'],
+            n_neurons_encoder=self.params.get('n_neurons_encoder', self.params['n_neurons']),
+            dropout=self.params['dropout'], activation=self.params['activation'], RE_cols_prefix=self.params['RE_cols_prefix'],
+            re_sig2b_prior=self.params['re_sig2b_prior'], beta_vae=self.params['beta_vae'],
+            hashing_bins=self.params.get('hashing_bins', 2**10), log_params=self.params['log_params'],
+            mmbeddings_post_training=self.params.get('mmbeddings_post_training', True),
+            epochs_post_training=self.params.get('epochs_post_training', self.params['epochs']),
+            patience_post_training=self.params.get('patience_post_training', self.params['patience'])
+        )
+        return exp
 
 def non_linear_fn0(input_features):
     # Periodic sine function of the sum of squares of input features

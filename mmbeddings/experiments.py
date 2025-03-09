@@ -61,10 +61,10 @@ class Experiment:
         end = time.time()
         runtime = end - start
         metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
-        frobenius, spearman, nrmse = np.nan, np.nan, np.nan
         if self.plot_fn:
             self.plot_fn(self.y_test, y_pred.flatten())
-        self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
+        self.exp_res = ExpResult(metric=metric, sigmas=sigmas, nll_tr=nll_tr,
+                                 nll_te=nll_te, n_epochs=n_epochs, time=runtime, n_params=n_params)
     
     def get_input_dimension(self, X_train):
         return len(self.exp_in.x_cols)
@@ -238,7 +238,9 @@ class Embeddings(Experiment):
             frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
         if self.plot_fn:
             self.plot_fn(self.y_test, y_pred.flatten())
-        self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
+        self.exp_res = ExpResult(metric=metric, sigmas=sigmas, nll_tr=nll_tr,
+                                 nll_te=nll_te, n_epochs=n_epochs, time=runtime, n_params=n_params,
+                                 frobenius=frobenius, spearman=spearman, nrmse=nrmse)
 
 
 class REbeddings(Experiment):
@@ -292,7 +294,9 @@ class REbeddings(Experiment):
             self.plot_fn(self.y_test, y_pred.flatten())
         if self.diverse_batches:
             self.undiversify_batches()
-        self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
+        self.exp_res = ExpResult(metric=metric, sigmas=sigmas, nll_tr=nll_tr,
+                                 nll_te=nll_te, n_epochs=n_epochs, time=runtime, n_params=n_params,
+                                 frobenius=frobenius, spearman=spearman, nrmse=nrmse)
 
     def prepare_input_data(self):
         X_train, Z_train = self.prepare_input_data_single_set(self.X_train)
@@ -350,10 +354,10 @@ class LMMNN(Experiment):
             metric = roc_auc_score(self.y_test, y_pred)
         else:
             raise ValueError(f'Unsupported y_type: {y_type}')
-        frobenius, spearman, nrmse = np.nan, np.nan, np.nan
         if self.plot_fn:
             self.plot_fn(self.y_test, y_pred.flatten())
-        self.exp_res = ExpResult(metric, frobenius, spearman, nrmse, sigmas, nll_tr, nll_te, n_epochs, runtime, n_params)
+        self.exp_res = ExpResult(metric=metric, sigmas=sigmas, nll_tr=nll_tr,
+                                 nll_te=nll_te, n_epochs=n_epochs, time=runtime, n_params=n_params)
 
     def get_init_vals(self):
         q_spatial = None
