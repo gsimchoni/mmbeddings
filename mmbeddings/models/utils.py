@@ -61,6 +61,16 @@ def compute_category_embedding(cat_feature, embeddings, num_tokens, return_batch
     
     return avg_embeddings
 
+def adjusted_auc(y_true, y_pred):
+    auc = roc_auc_score(y_true, y_pred)
+    return max(auc, 1 - auc)  # Flip if necessary
+
+def adjusted_log_loss(y_true, y_pred):
+    flipped_pred = 1 - y_pred  # Flip probabilities
+    loss = log_loss(y_true, y_pred)
+    flipped_loss = log_loss(y_true, flipped_pred)
+    return min(loss, flipped_loss)  # Take the best alignment
+
 def evaluate_predictions(y_type, y_test, y_pred):
         if y_type == 'continuous':
             mse = mean_squared_error(y_test, y_pred)
@@ -68,8 +78,8 @@ def evaluate_predictions(y_type, y_test, y_pred):
             r2 = r2_score(y_test, y_pred)
             metrics = [mse, mae, r2]
         elif y_type == 'binary':
-            auc = roc_auc_score(y_test, y_pred)
-            logloss = log_loss(y_test, y_pred)
+            auc = adjusted_auc(y_test, y_pred)
+            logloss = adjusted_log_loss(y_test, y_pred)
             accuracy = accuracy_score(y_test, y_pred > 0.5)
             metrics = [auc, logloss, accuracy]
         else:
