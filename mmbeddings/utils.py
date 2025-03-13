@@ -7,7 +7,7 @@ import scipy.sparse as sparse
 
 @dataclass
 class ExpResult:
-    metric: float
+    metrics: List[float]
     nll_tr: float
     nll_te: float
     n_epochs: int

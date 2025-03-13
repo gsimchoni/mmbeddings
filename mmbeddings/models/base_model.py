@@ -1,8 +1,9 @@
 import numpy as np
-from sklearn.metrics import roc_auc_score
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
+
+from mmbeddings.models.utils import evaluate_predictions
 
 
 class BaseModel(Model):
@@ -26,18 +27,13 @@ class BaseModel(Model):
         return history
     
     def summarize(self, y_test, y_pred, history, sig2bs_hat_list):
-        if self.exp_in.y_type == 'continuous':
-            metric = np.mean((y_test - y_pred.reshape(-1)) ** 2)
-        elif self.exp_in.y_type == 'binary':
-            metric = roc_auc_score(y_test, y_pred)
-        else:
-            raise ValueError(f'Unsupported y_type: {self.exp_in.y_type}')
+        metrics = evaluate_predictions(self.exp_in.y_type, y_test, y_pred.reshape(-1))
         sig2bs_mean_est = [np.mean(sig2bs) for sig2bs in sig2bs_hat_list]
         sigmas = [np.nan, sig2bs_mean_est]
         nll_tr, nll_te = np.nan, np.nan
         n_epochs = len(history.history['loss'])
         n_params = self.count_params()
-        return metric, sigmas, nll_tr, nll_te, n_epochs, n_params
+        return metrics, sigmas, nll_tr, nll_te, n_epochs, n_params
     
     def add_layers_sequential(self, input_dim):
         n_neurons = self.exp_in.n_neurons

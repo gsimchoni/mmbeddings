@@ -28,7 +28,7 @@ class Simulation:
         self.exp_types = params['exp_types']
         self.verbose = params.get('verbose', False)
         self.results = []
-        self.metric_name = self.get_metric_name(params['y_type'])
+        self.metric_names = self.get_metric_names(params['y_type'])
         self.dtype_dict = self.get_dtype_dict()
 
     def run(self):
@@ -63,7 +63,6 @@ class Simulation:
             'beta': 'float64',
             'experiment': 'int64',
             'exp_type': 'object',
-            self.metric_name: 'float64',
             'frobenius': 'float64',
             'spearman': 'float64',
             'nrmse': 'float64',
@@ -76,6 +75,7 @@ class Simulation:
         }
         dtype_dict.update({k: 'float64' for k in self.sig2bs_names + self.sig2bs_est_names})
         dtype_dict.update({k: 'int64' for k in self.qs_names})
+        dtype_dict.update({k: 'float64' for k in self.metric_names})
         return dtype_dict
     
     def get_experiment(self, exp_type):
@@ -124,7 +124,7 @@ class Simulation:
             **{name: val for name, val in zip(self.qs_names, self.exp_in.qs)},  # Expands qs
             'experiment': self.exp_in.k,
             'exp_type': exp_type,
-            self.metric_name: self.exp_res.metric,
+            **{name: val for name, val in zip(self.metric_names, self.exp_res.metrics)},
             'frobenius': self.exp_res.frobenius,
             'spearman': self.exp_res.spearman,
             'nrmse': self.exp_res.nrmse,
@@ -137,8 +137,13 @@ class Simulation:
             'n_params': self.exp_res.n_params,
         }
 
-    def get_metric_name(self, y_type):
-        return 'mse' if y_type == 'continuous' else 'auc' if y_type == 'binary' else ValueError(f'Unsupported y_type: {y_type}')
+    def get_metric_names(self, y_type):
+        if y_type == 'continuous':
+            return ['mse', 'mae', 'r2']
+        elif y_type == 'binary':
+            return ['auc', 'logloss', 'accuracy']
+        else:
+            raise ValueError(f'Unsupported y_type: {y_type}')
     
     def iterate_experiment_types(self):
         """

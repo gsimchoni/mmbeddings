@@ -1,3 +1,4 @@
+from sklearn.metrics import accuracy_score, log_loss, mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
 import tensorflow.keras.backend as K
@@ -59,3 +60,18 @@ def compute_category_embedding(cat_feature, embeddings, num_tokens, return_batch
         avg_embeddings = tf.gather(avg_embeddings, cat_feature_flat)
     
     return avg_embeddings
+
+def evaluate_predictions(y_type, y_test, y_pred):
+        if y_type == 'continuous':
+            mse = mean_squared_error(y_test, y_pred)
+            mae = mean_absolute_error(y_test, y_pred)
+            r2 = r2_score(y_test, y_pred)
+            metrics = [mse, mae, r2]
+        elif y_type == 'binary':
+            auc = roc_auc_score(y_test, y_pred)
+            logloss = log_loss(y_test, y_pred)
+            accuracy = accuracy_score(y_test, y_pred > 0.5)
+            metrics = [auc, logloss, accuracy]
+        else:
+            raise ValueError(f'Unsupported y_type: {y_type}')
+        return metrics

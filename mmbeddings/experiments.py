@@ -4,7 +4,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.decomposition import PCA
-from sklearn.metrics import roc_auc_score
 from mmbeddings.models.lmmnn.lmmnn import run_lmmnn
 from mmbeddings.models.mlp import MLP
 from mmbeddings.models.embeddings import EmbeddingsMLP, HashingMLP
@@ -14,6 +13,7 @@ from mmbeddings.models.regbeddings import RegbeddingsMLP
 from mmbeddings.models.tabtransformer import TabTransformerModel
 from mmbeddings.models.tf_tabnet.tabnet import TabNetModel
 from mmbeddings.models.ncf import NCFModel
+from mmbeddings.models.utils import evaluate_predictions
 from mmbeddings.utils import ExpResult
 from mmbeddings.metrics import calculate_embedding_metrics
 
@@ -60,10 +60,10 @@ class Experiment:
         y_pred = self.processing_fn(y_pred)
         end = time.time()
         runtime = end - start
-        metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
+        metrics, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
         if self.plot_fn:
             self.plot_fn(self.y_test, y_pred.flatten())
-        self.exp_res = ExpResult(metric=metric, sigmas=sigmas, nll_tr=nll_tr,
+        self.exp_res = ExpResult(metrics=metrics, sigmas=sigmas, nll_tr=nll_tr,
                                  nll_te=nll_te, n_epochs=n_epochs, time=runtime, n_params=n_params)
     
     def get_input_dimension(self, X_train):
@@ -232,13 +232,13 @@ class Embeddings(Experiment):
         y_pred = self.processing_fn(y_pred)
         end = time.time()
         runtime = end - start
-        metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
+        metrics, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
         frobenius, spearman, nrmse = np.nan, np.nan, np.nan
         if self.simulation_mode:
             frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
         if self.plot_fn:
             self.plot_fn(self.y_test, y_pred.flatten())
-        self.exp_res = ExpResult(metric=metric, sigmas=sigmas, nll_tr=nll_tr,
+        self.exp_res = ExpResult(metrics=metrics, sigmas=sigmas, nll_tr=nll_tr,
                                  nll_te=nll_te, n_epochs=n_epochs, time=runtime, n_params=n_params,
                                  frobenius=frobenius, spearman=spearman, nrmse=nrmse)
 
@@ -286,7 +286,7 @@ class REbeddings(Experiment):
             losses_te = model.evaluate_model(X_test, Z_test, self.y_test)
         end = time.time()
         runtime = end - start
-        metric, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
+        metrics, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
         frobenius, spearman, nrmse = np.nan, np.nan, np.nan
         if self.simulation_mode:
             frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
@@ -294,7 +294,7 @@ class REbeddings(Experiment):
             self.plot_fn(self.y_test, y_pred.flatten())
         if self.diverse_batches:
             self.undiversify_batches()
-        self.exp_res = ExpResult(metric=metric, sigmas=sigmas, nll_tr=nll_tr,
+        self.exp_res = ExpResult(metrics=metrics, sigmas=sigmas, nll_tr=nll_tr,
                                  nll_te=nll_te, n_epochs=n_epochs, time=runtime, n_params=n_params,
                                  frobenius=frobenius, spearman=spearman, nrmse=nrmse)
 
@@ -348,15 +348,10 @@ class LMMNN(Experiment):
         y_pred = self.processing_fn(y_pred)
         end = time.time()
         runtime = end - start
-        if y_type == 'continuous':
-            metric = np.mean((y_pred - self.y_test)**2)
-        elif y_type == 'binary':
-            metric = roc_auc_score(self.y_test, y_pred)
-        else:
-            raise ValueError(f'Unsupported y_type: {y_type}')
+        metrics = evaluate_predictions(self.exp_in.y_type, self.y_test, y_pred)
         if self.plot_fn:
             self.plot_fn(self.y_test, y_pred.flatten())
-        self.exp_res = ExpResult(metric=metric, sigmas=sigmas, nll_tr=nll_tr,
+        self.exp_res = ExpResult(metrics=metrics, sigmas=sigmas, nll_tr=nll_tr,
                                  nll_te=nll_te, n_epochs=n_epochs, time=runtime, n_params=n_params)
 
     def get_init_vals(self):
