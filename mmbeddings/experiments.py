@@ -270,10 +270,10 @@ class REbeddings(Experiment):
         history = model.fit_model(X_train, Z_train, self.y_train, shuffle=not self.diverse_batches)
         embeddings_list, sig2bs_hat_list = model.predict_embeddings(X_train, Z_train, self.y_train)
         if self.exp_type == 'mmbeddings' and self.exp_in.mmbeddings_post_training:
-            # uncomment to see the difference in test MSE when adding decoder post training
-            y_pred0 = model.predict_model(X_test, Z_test, embeddings_list)
-            mse0 = np.mean((self.y_test - y_pred0) ** 2)
-            print(f'MSE before post training: {mse0}')
+            y_pred = model.predict_model(X_test, Z_test, embeddings_list)
+            metrics = evaluate_predictions(self.exp_in.y_type, self.y_test, y_pred)
+            if self.exp_in.verbose:
+                print(f'MSE/AUC before post training: {metrics[0]}')
             embeddings_list_processed = model.replicate_Bs_to_predict(Z_train, embeddings_list)
             model_post_trainer = MmbeddingsDecoderPostTraining(self.exp_in, model.decoder, self.exp_type)
             model_post_trainer.compile(optimizer='adam', loss='mse')
