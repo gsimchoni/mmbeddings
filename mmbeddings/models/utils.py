@@ -71,6 +71,12 @@ def adjusted_log_loss(y_true, y_pred):
     flipped_loss = log_loss(y_true, flipped_pred)
     return min(loss, flipped_loss)  # Take the best alignment
 
+def adjust_accuracy(y_true, y_pred):
+    flipped_pred = 1 - y_pred  # Flip probabilities
+    acc = accuracy_score(y_true, y_pred > 0.5)
+    flipped_acc = accuracy_score(y_true, flipped_pred > 0.5)
+    return max(acc, flipped_acc)  # Take the best alignment
+
 def evaluate_predictions(y_type, y_test, y_pred):
         if y_type == 'continuous':
             mse = mean_squared_error(y_test, y_pred)
@@ -80,7 +86,7 @@ def evaluate_predictions(y_type, y_test, y_pred):
         elif y_type == 'binary':
             auc = adjusted_auc(y_test, y_pred)
             logloss = adjusted_log_loss(y_test, y_pred)
-            accuracy = accuracy_score(y_test, y_pred > 0.5)
+            accuracy = adjust_accuracy(y_test, y_pred)
             metrics = [auc, logloss, accuracy]
         else:
             raise ValueError(f'Unsupported y_type: {y_type}')
