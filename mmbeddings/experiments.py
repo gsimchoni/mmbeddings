@@ -13,8 +13,7 @@ from mmbeddings.models.regbeddings import RegbeddingsMLP
 from mmbeddings.models.tabtransformer import TabTransformerModel
 from mmbeddings.models.tf_tabnet.tabnet import TabNetModel
 from mmbeddings.models.ncf import NCFModel
-from mmbeddings.models.utils import evaluate_predictions
-from mmbeddings.utils import ExpResult
+from mmbeddings.utils import ExpResult, evaluate_predictions
 from mmbeddings.metrics import calculate_embedding_metrics
 
 
@@ -233,14 +232,14 @@ class Embeddings(Experiment):
         end = time.time()
         runtime = end - start
         metrics, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, history, sig2bs_hat_list)
-        frobenius, spearman, nrmse = np.nan, np.nan, np.nan
+        frobenius, spearman, nrmse, auc_embed = np.nan, np.nan, np.nan, np.nan
         if self.simulation_mode:
-            frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
+            frobenius, spearman, nrmse, auc_embed = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list, self.exp_in.y_embeddings)
         if self.plot_fn:
             self.plot_fn(self.y_test, y_pred.flatten())
         self.exp_res = ExpResult(metrics=metrics, sigmas=sigmas, nll_tr=nll_tr,
                                  nll_te=nll_te, n_epochs=n_epochs, time=runtime, n_params=n_params,
-                                 frobenius=frobenius, spearman=spearman, nrmse=nrmse)
+                                 frobenius=frobenius, spearman=spearman, nrmse=nrmse, auc_embed=auc_embed)
 
 
 class REbeddings(Experiment):
@@ -287,16 +286,16 @@ class REbeddings(Experiment):
         end = time.time()
         runtime = end - start
         metrics, sigmas, nll_tr, nll_te, n_epochs, n_params = model.summarize(self.y_test, y_pred, sig2bs_hat_list, losses_tr, losses_te, history)
-        frobenius, spearman, nrmse = np.nan, np.nan, np.nan
+        frobenius, spearman, nrmse, auc_embed = np.nan, np.nan, np.nan, np.nan
         if self.simulation_mode:
-            frobenius, spearman, nrmse = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list)
+            frobenius, spearman, nrmse, auc_embed = calculate_embedding_metrics(self.exp_in.B_true_list, embeddings_list, self.exp_in.y_embeddings)
         if self.plot_fn:
             self.plot_fn(self.y_test, y_pred.flatten())
         if self.diverse_batches:
             self.undiversify_batches()
         self.exp_res = ExpResult(metrics=metrics, sigmas=sigmas, nll_tr=nll_tr,
                                  nll_te=nll_te, n_epochs=n_epochs, time=runtime, n_params=n_params,
-                                 frobenius=frobenius, spearman=spearman, nrmse=nrmse)
+                                 frobenius=frobenius, spearman=spearman, nrmse=nrmse, auc_embed=auc_embed)
 
     def prepare_input_data(self):
         X_train, Z_train = self.prepare_input_data_single_set(self.X_train)

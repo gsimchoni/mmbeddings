@@ -41,7 +41,8 @@ class DataSimulator:
         y = self.calculate_y(X, B_list, Z_idx_list, noise)
         df, x_cols = self.create_df(X, Z_idx_list, y)
         X_train, X_test, y_train, y_test = self.split_data(df)
-        return ExpData(X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test, x_cols=x_cols, B_true_list=B_list)
+        y_embeddings = generate_binary_labels(B_list)
+        return ExpData(X_train=X_train, X_test=X_test, y_train=y_train, y_test=y_test, x_cols=x_cols, B_true_list=B_list, y_embeddings=y_embeddings)
 
     def sample_fe(self):
         """Sample fixed effects."""
@@ -186,7 +187,7 @@ class ExperimentInput:
         """Return an ExpInput dataclass."""
         exp = ExpInput(
             X_train=self.exp_data.X_train, X_test=self.exp_data.X_test, y_train=self.exp_data.y_train, y_test=self.exp_data.y_test,
-            x_cols=self.exp_data.x_cols, B_true_list=self.exp_data.B_true_list,
+            x_cols=self.exp_data.x_cols, B_true_list=self.exp_data.B_true_list, y_embeddings=self.exp_data.y_embeddings,
             n_train=self.n_train, n_test=self.n_test, pred_unknown=self.pred_unknown_clusters, qs=self.qs, d=self.d,
             sig2e=self.sig2e, sig2bs=self.sig2bs, y_type=self.params['y_type'], k=self.k, batch=self.params['batch'],
             epochs=self.params['epochs'], patience=self.params['patience'], Z_embed_dim_pct=self.params['Z_embed_dim_pct'],
@@ -346,3 +347,15 @@ def generate_collaborative_data(X, embeddings, activation='identity'):
     y = interaction + feature_contributions  # Final response
     
     return y.reshape(-1, 1)
+
+def generate_binary_labels(true_embed_list):
+    all_labels = []
+    for X_true in true_embed_list:
+        q_k, d = X_true.shape
+        w = np.random.randn(d)
+        y_continuous = X_true @ w + 0.1 * np.random.randn(q_k)
+        # labels = (y_continuous > np.median(y_continuous)).astype(int)
+        labels = 1 / (1 + np.exp(-y_continuous))
+        labels = (labels > np.median(labels)).astype(int)
+        all_labels.append(labels)
+    return np.concatenate(all_labels)

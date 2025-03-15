@@ -1,4 +1,3 @@
-from sklearn.metrics import accuracy_score, log_loss, mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
 import tensorflow.keras.backend as K
@@ -60,34 +59,3 @@ def compute_category_embedding(cat_feature, embeddings, num_tokens, return_batch
         avg_embeddings = tf.gather(avg_embeddings, cat_feature_flat)
     
     return avg_embeddings
-
-def adjusted_auc(y_true, y_pred):
-    auc = roc_auc_score(y_true, y_pred)
-    return max(auc, 1 - auc)  # Flip if necessary
-
-def adjusted_log_loss(y_true, y_pred):
-    flipped_pred = 1 - y_pred  # Flip probabilities
-    loss = log_loss(y_true, y_pred)
-    flipped_loss = log_loss(y_true, flipped_pred)
-    return min(loss, flipped_loss)  # Take the best alignment
-
-def adjust_accuracy(y_true, y_pred):
-    flipped_pred = 1 - y_pred  # Flip probabilities
-    acc = accuracy_score(y_true, y_pred > 0.5)
-    flipped_acc = accuracy_score(y_true, flipped_pred > 0.5)
-    return max(acc, flipped_acc)  # Take the best alignment
-
-def evaluate_predictions(y_type, y_test, y_pred):
-        if y_type == 'continuous':
-            mse = mean_squared_error(y_test, y_pred)
-            mae = mean_absolute_error(y_test, y_pred)
-            r2 = r2_score(y_test, y_pred)
-            metrics = [mse, mae, r2]
-        elif y_type == 'binary':
-            auc = adjusted_auc(y_test, y_pred)
-            logloss = adjusted_log_loss(y_test, y_pred)
-            accuracy = adjust_accuracy(y_test, y_pred)
-            metrics = [auc, logloss, accuracy]
-        else:
-            raise ValueError(f'Unsupported y_type: {y_type}')
-        return metrics

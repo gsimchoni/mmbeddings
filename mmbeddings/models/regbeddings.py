@@ -7,7 +7,8 @@ from tensorflow.keras.losses import MeanSquaredError, BinaryCrossentropy
 from tensorflow.keras.models import Model
 
 from mmbeddings.models.embeddings import EmbeddingsDecoder, EmbeddingsDecoderGrowthModel
-from mmbeddings.models.utils import Sampling, evaluate_predictions
+from mmbeddings.models.utils import Sampling
+from mmbeddings.utils import evaluate_predictions
 
 
 class RegbeddingsEncoder(Model):

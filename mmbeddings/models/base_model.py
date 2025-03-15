@@ -3,7 +3,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 
-from mmbeddings.models.utils import evaluate_predictions
+from mmbeddings.utils import evaluate_predictions
 
 
 class BaseModel(Model):

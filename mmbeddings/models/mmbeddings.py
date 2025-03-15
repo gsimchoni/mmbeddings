@@ -9,7 +9,8 @@ from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers.experimental.preprocessing import CategoryEncoding
 from tensorflow.keras.losses import MeanSquaredError, BinaryCrossentropy
 
-from mmbeddings.models.utils import Sampling, build_coder, compute_category_embedding, evaluate_predictions
+from mmbeddings.models.utils import Sampling, build_coder, compute_category_embedding
+from mmbeddings.utils import evaluate_predictions
 
 
 class MmbeddingsEncoder(Model):

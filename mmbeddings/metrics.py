@@ -1,6 +1,9 @@
 import numpy as np
 from scipy.spatial.distance import cdist
 from scipy.stats import spearmanr
+from sklearn.linear_model import LogisticRegression
+
+from mmbeddings.utils import adjusted_auc
 
 def upper_triangular_values(D):
     return D[np.triu_indices_from(D, k=1)]
@@ -49,8 +52,17 @@ def normalized_rmse(true_embed_list, pred_embed_list):
         nrmse_values.append(nrmse)
     return np.mean(nrmse_values)
 
-def calculate_embedding_metrics(true_embed_list, pred_embed_list):
+def auc_embeddings(pred_embed_list, y_embed):
+    X = np.concatenate(pred_embed_list)
+    model = LogisticRegression(solver='lbfgs', max_iter=1000)
+    model.fit(X, y_embed)
+    y_pred_prob = model.predict_proba(X)[:, 1]
+    auc = adjusted_auc(y_embed, y_pred_prob)
+    return auc
+
+def calculate_embedding_metrics(true_embed_list, pred_embed_list, y_embed):
     frob_distance = frobenius_distance(true_embed_list, pred_embed_list)
     spearman_corr = spearman_rank_correlation(true_embed_list, pred_embed_list)
     nrmse = normalized_rmse(true_embed_list, pred_embed_list)
-    return frob_distance, spearman_corr, nrmse
+    auc_embed = auc_embeddings(pred_embed_list, y_embed)
+    return frob_distance, spearman_corr, nrmse, auc_embed

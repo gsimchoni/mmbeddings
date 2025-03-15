@@ -4,6 +4,7 @@ from typing import List, Optional
 
 import numpy as np
 import scipy.sparse as sparse
+from sklearn.metrics import accuracy_score, log_loss, mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
 
 @dataclass
 class ExpResult:
@@ -16,6 +17,7 @@ class ExpResult:
     frobenius: float = field(default=np.nan)
     spearman: float = field(default=np.nan)
     nrmse: float = field(default=np.nan)
+    auc_embed: float = field(default=np.nan)
     sigmas: List[float] = field(default_factory=list)
 
 @dataclass
@@ -26,6 +28,7 @@ class ExpData:
     y_test: any
     x_cols: List[str]
     B_true_list: List[np.ndarray]
+    y_embeddings: np.ndarray
 
 @dataclass
 class ExpInput:
@@ -35,6 +38,7 @@ class ExpInput:
     y_test: any
     x_cols: List[str]
     B_true_list: List[np.ndarray]
+    y_embeddings: np.ndarray
     
     n_train: int
     n_test: int
@@ -106,3 +110,34 @@ def get_cov_mat(sig2bs, rhos, est_cors):
                     rho = 0
                 cov_mat[k, j] = rho * np.sqrt(sig2bs[k]) * np.sqrt(sig2bs[j])
     return cov_mat
+
+def adjusted_auc(y_true, y_pred):
+    auc = roc_auc_score(y_true, y_pred)
+    return max(auc, 1 - auc)  # Flip if necessary
+
+def adjusted_log_loss(y_true, y_pred):
+    flipped_pred = 1 - y_pred  # Flip probabilities
+    loss = log_loss(y_true, y_pred)
+    flipped_loss = log_loss(y_true, flipped_pred)
+    return min(loss, flipped_loss)  # Take the best alignment
+
+def adjust_accuracy(y_true, y_pred):
+    flipped_pred = 1 - y_pred  # Flip probabilities
+    acc = accuracy_score(y_true, y_pred > 0.5)
+    flipped_acc = accuracy_score(y_true, flipped_pred > 0.5)
+    return max(acc, flipped_acc)  # Take the best alignment
+
+def evaluate_predictions(y_type, y_test, y_pred):
+        if y_type == 'continuous':
+            mse = mean_squared_error(y_test, y_pred)
+            mae = mean_absolute_error(y_test, y_pred)
+            r2 = r2_score(y_test, y_pred)
+            metrics = [mse, mae, r2]
+        elif y_type == 'binary':
+            auc = adjusted_auc(y_test, y_pred)
+            logloss = adjusted_log_loss(y_test, y_pred)
+            accuracy = adjust_accuracy(y_test, y_pred)
+            metrics = [auc, logloss, accuracy]
+        else:
+            raise ValueError(f'Unsupported y_type: {y_type}')
+        return metrics
