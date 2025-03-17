@@ -8,18 +8,34 @@ from mmbeddings.utils import adjusted_auc
 def upper_triangular_values(D):
     return D[np.triu_indices_from(D, k=1)]
 
-def frobenius_distance(true_embed_list, pred_embed_list):
+def frobenius_distance(true_embed_list, pred_embed_list, sample_size = 10000):
     frob_distances = []
+    
     for X_true, X_pred in zip(true_embed_list, pred_embed_list):
+        q = X_true.shape[0]
+        
+        if q > sample_size:
+            indices = np.random.choice(q, sample_size, replace=False)
+            X_true = X_true[indices]
+            X_pred = X_pred[indices]
+        
         D_true = cdist(X_true, X_true, metric='euclidean')
         D_pred = cdist(X_pred, X_pred, metric='euclidean')
         frob_norm = np.linalg.norm(D_true - D_pred, ord='fro') / np.linalg.norm(D_true, ord='fro')
         frob_distances.append(frob_norm)
+
     return np.mean(frob_distances)
 
-def spearman_rank_correlation(true_embed_list, pred_embed_list, sample_size=1000000):
+def spearman_rank_correlation(true_embed_list, pred_embed_list, sample_size=10000, sample_size_corr=1000000):
     spearman_corrs = []
     for X_true, X_pred in zip(true_embed_list, pred_embed_list):
+        q = X_true.shape[0]
+        
+        if q > sample_size:
+            indices = np.random.choice(q, sample_size, replace=False)
+            X_true = X_true[indices]
+            X_pred = X_pred[indices]
+        
         D_true = cdist(X_true, X_true, metric='euclidean')
         D_pred = cdist(X_pred, X_pred, metric='euclidean')
 
@@ -28,7 +44,7 @@ def spearman_rank_correlation(true_embed_list, pred_embed_list, sample_size=1000
         D_pred_flat = upper_triangular_values(D_pred).flatten()
 
         # Randomly sample indices
-        if sample_size < len(D_true_flat):
+        if sample_size_corr < len(D_true_flat):
             indices = np.random.choice(len(D_true_flat), sample_size, replace=False)
             D_true_sampled = D_true_flat[indices]
             D_pred_sampled = D_pred_flat[indices]
@@ -40,9 +56,16 @@ def spearman_rank_correlation(true_embed_list, pred_embed_list, sample_size=1000
         spearman_corrs.append(corr if corr is not None else 0.0)
     return np.mean(spearman_corrs)
 
-def normalized_rmse(true_embed_list, pred_embed_list):
+def normalized_rmse(true_embed_list, pred_embed_list, sample_size=10000):
     nrmse_values = []
     for X_true, X_pred in zip(true_embed_list, pred_embed_list):
+        q = X_true.shape[0]
+        
+        if q > sample_size:
+            indices = np.random.choice(q, sample_size, replace=False)
+            X_true = X_true[indices]
+            X_pred = X_pred[indices]
+        
         D_true = cdist(X_true, X_true, metric='euclidean')
         D_pred = cdist(X_pred, X_pred, metric='euclidean')
         diff = upper_triangular_values(D_true - D_pred)
