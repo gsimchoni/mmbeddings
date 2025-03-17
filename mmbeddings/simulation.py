@@ -72,7 +72,10 @@ class Simulation:
             'nll_test': 'float64',
             'n_epochs': 'int64',
             'time': 'float64',
-            'n_params': 'int64'
+            'n_params': 'int64',
+            'encoder': 'object',
+            'decoder': 'object',
+            'patience': 'int64'
         }
         dtype_dict.update({k: 'float64' for k in self.sig2bs_names + self.sig2bs_est_names})
         dtype_dict.update({k: 'int64' for k in self.qs_names})
@@ -137,6 +140,9 @@ class Simulation:
             'n_epochs': self.exp_res.n_epochs,
             'time': self.exp_res.time,
             'n_params': self.exp_res.n_params,
+            'encoder': '[' + ', '.join(map(str, self.exp_in.n_neurons_encoder)) + ']',
+            'decoder': '[' + ', '.join(map(str, self.exp_in.n_neurons)) + ']',
+            'patience': self.exp_in.patience if self.exp_in.patience is not None else self.exp_in.epochs
         }
 
     def get_metric_names(self, y_type):
