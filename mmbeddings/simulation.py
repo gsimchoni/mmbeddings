@@ -39,19 +39,22 @@ class Simulation:
             for sig2e in self.params['sig2e_list']:
                 for qs in product(*self.params['q_list']):
                     for sig2bs in product(*self.params['sig2b_list']):
-                        for beta_vae in self.params['beta_vae_list']:
-                            self.params['beta_vae'] = beta_vae
+                        for k in range(self.n_iter):
+                            self.logger.info(f'Iteration {k + 1}/{self.n_iter}')
                             self.logger.info(f'n_train: {n_train}, qs: {", ".join(map(str, qs))}, '
-                                                    f'sig2e: {sig2e}, '
-                                                    f'sig2bs_mean: {", ".join(map(str, sig2bs))}, '
-                                                    f'beta_vae: {beta_vae}')
-                            for k in range(self.n_iter):
-                                self.logger.info(f'Iteration {k + 1}/{self.n_iter}')
-                                simulator = DataSimulator(qs, sig2e, sig2bs, n_train, self.n_test, self.pred_unknown_clusters, self.params)
-                                exp_data = simulator.generate_data()
-                                self.exp_in = ExperimentInput(exp_data, n_train, self.n_test, self.pred_unknown_clusters, qs, self.d,
-                                                        sig2e, sig2bs, k, self.n_sig2bs, self.params).get()
-                                self.iterate_experiment_types()
+                                                     f'sig2e: {sig2e}, '
+                                                     f'sig2bs_mean: {", ".join(map(str, sig2bs))}, ')
+                            simulator = DataSimulator(qs, sig2e, sig2bs, n_train, self.n_test, self.pred_unknown_clusters, self.params)
+                            exp_data = simulator.generate_data()
+                            for beta_vae in self.params['beta_vae_list']:
+                                for batch in self.params['batch_list']:
+                                    self.params['beta_vae'] = beta_vae
+                                    self.params['batch'] = batch
+                                    self.logger.info(f'beta_vae: {beta_vae}, '
+                                                     f'batch: {batch}')
+                                    self.exp_in = ExperimentInput(exp_data, n_train, self.n_test, self.pred_unknown_clusters, qs, self.d,
+                                                                    sig2e, sig2bs, k, self.n_sig2bs, self.params).get()
+                                    self.iterate_experiment_types()                                
 
     def get_dtype_dict(self):
         dtype_dict = {
