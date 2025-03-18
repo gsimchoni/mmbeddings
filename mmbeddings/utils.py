@@ -19,6 +19,7 @@ class ExpResult:
     nrmse: float = field(default=np.nan)
     auc_embed: float = field(default=np.nan)
     sigmas: List[float] = field(default_factory=list)
+    metric_pre_post: float = field(default=np.nan)
 
 @dataclass
 class ExpData:

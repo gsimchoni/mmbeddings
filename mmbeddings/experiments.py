@@ -268,9 +268,10 @@ class REbeddings(Experiment):
         model.compile(optimizer='adam')
         history = model.fit_model(X_train, Z_train, self.y_train, shuffle=not self.diverse_batches)
         embeddings_list, sig2bs_hat_list = model.predict_embeddings(X_train, Z_train, self.y_train)
+        metrics_pre_post = [np.nan]
         if self.exp_type == 'mmbeddings' and self.exp_in.mmbeddings_post_training:
             y_pred = model.predict_model(X_test, Z_test, embeddings_list)
-            metrics = evaluate_predictions(self.exp_in.y_type, self.y_test, y_pred)
+            metrics_pre_post = evaluate_predictions(self.exp_in.y_type, self.y_test, y_pred)
             if self.exp_in.verbose:
                 print(f'MSE/AUC before post training: {metrics[0]}')
             embeddings_list_processed = model.replicate_Bs_to_predict(Z_train, embeddings_list)
@@ -295,7 +296,8 @@ class REbeddings(Experiment):
             self.undiversify_batches()
         self.exp_res = ExpResult(metrics=metrics, sigmas=sigmas, nll_tr=nll_tr,
                                  nll_te=nll_te, n_epochs=n_epochs, time=runtime, n_params=n_params,
-                                 frobenius=frobenius, spearman=spearman, nrmse=nrmse, auc_embed=auc_embed)
+                                 frobenius=frobenius, spearman=spearman, nrmse=nrmse, auc_embed=auc_embed,
+                                 metric_pre_post = metrics_pre_post[0])
 
     def prepare_input_data(self):
         X_train, Z_train = self.prepare_input_data_single_set(self.X_train)
