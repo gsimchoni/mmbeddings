@@ -272,8 +272,6 @@ class REbeddings(Experiment):
         if self.exp_type == 'mmbeddings' and self.exp_in.mmbeddings_post_training:
             y_pred = model.predict_model(X_test, Z_test, embeddings_list)
             metrics_pre_post = evaluate_predictions(self.exp_in.y_type, self.y_test, y_pred)
-            if self.exp_in.verbose:
-                print(f'MSE/AUC before post training: {metrics[0]}')
             embeddings_list_processed = model.replicate_Bs_to_predict(Z_train, embeddings_list)
             model_post_trainer = MmbeddingsDecoderPostTraining(self.exp_in, model.decoder, self.exp_type)
             model_post_trainer.compile(optimizer='adam', loss='mse')
