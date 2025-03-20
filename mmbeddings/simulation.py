@@ -48,13 +48,22 @@ class Simulation:
                             exp_data = simulator.generate_data()
                             for beta_vae in self.params['beta_vae_list']:
                                 for batch in self.params['batch_list']:
-                                    self.params['beta_vae'] = beta_vae
-                                    self.params['batch'] = batch
-                                    self.logger.info(f'beta_vae: {beta_vae}, '
-                                                     f'batch: {batch}')
-                                    self.exp_in = ExperimentInput(exp_data, n_train, self.n_test, self.pred_unknown_clusters, qs, self.d,
-                                                                    sig2e, sig2bs, k, self.n_sig2bs, self.params).get()
-                                    self.iterate_experiment_types()                                
+                                    for n_neurons in self.params['n_neurons_list']:
+                                        for epochs in self.params['epochs_list']:
+                                            for patience in self.params['patience_list']:
+                                                self.params['patience'] = patience
+                                                self.params['epochs'] = epochs
+                                                self.params['n_neurons'] = n_neurons
+                                                self.params['beta_vae'] = beta_vae
+                                                self.params['batch'] = batch
+                                                self.logger.info(f'beta_vae: {beta_vae}, '
+                                                                f'batch: {batch}'
+                                                                f'n_neurons: {n_neurons}, '
+                                                                f'epochs: {epochs}, '
+                                                                f'patience: {patience}')
+                                                self.exp_in = ExperimentInput(exp_data, n_train, self.n_test, self.pred_unknown_clusters, qs, self.d,
+                                                                                sig2e, sig2bs, k, self.n_sig2bs, self.params).get()
+                                                self.iterate_experiment_types()                                
 
     def get_dtype_dict(self):
         dtype_dict = {
