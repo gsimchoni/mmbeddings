@@ -31,10 +31,31 @@ class Simulation:
         self.metric_names = self.get_metric_names(params['y_type'])
         self.dtype_dict = self.get_dtype_dict()
 
+    def print_simulation_scope(self):
+        """
+        Print the scope of the simulation, detailing all parameter values to be iterated over.
+        """
+        self.logger.info("----------------------------------------------------")
+        self.logger.info("Starting simulation with the following parameter ranges:")
+        self.logger.info(f"Task type: {self.params['y_type']}")
+        self.logger.info(f"Number of training samples: {self.params['n_train_list']}")
+        self.logger.info(f"Noise variance (sig2e): {self.params['sig2e_list']}")
+        self.logger.info(f"Categorical features cardinality values (q_list): {self.params['q_list']}")
+        self.logger.info(f"Random effect variances (sig2b_list): {self.params['sig2b_list']}")
+        self.logger.info(f"Number of iterations: {self.n_iter}")
+        self.logger.info(f"VAE regularization (beta_vae): {self.params['beta_vae_list']}")
+        self.logger.info(f"Batch sizes: {self.params['batch_list']}")
+        self.logger.info(f"Number of neurons: {self.params['n_neurons_list']}")
+        self.logger.info(f"Epochs: {self.params['epochs_list']}")
+        self.logger.info(f"Patience values: {self.params['patience_list']}")
+        self.logger.info("----------------------------------------------------")
+    
     def run(self):
         """
         Run the full simulation.
         """
+        self.print_simulation_scope()
+
         for n_train in self.params['n_train_list']:
             for sig2e in self.params['sig2e_list']:
                 for qs in product(*self.params['q_list']):
@@ -57,7 +78,7 @@ class Simulation:
                                                 self.params['beta_vae'] = beta_vae
                                                 self.params['batch'] = batch
                                                 self.logger.info(f'beta_vae: {beta_vae}, '
-                                                                f'batch: {batch}'
+                                                                f'batch: {batch}, '
                                                                 f'n_neurons: {n_neurons}, '
                                                                 f'epochs: {epochs}, '
                                                                 f'patience: {patience}')
