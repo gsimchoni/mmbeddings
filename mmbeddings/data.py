@@ -125,8 +125,8 @@ class DataSimulator:
             # y = np.maximum(0.01, y) # uncomment this line to add a lower bound to the response in a growth model
         elif self.y_type == 'binary':
             y = non_linear_term.flatten()
-            p = np.exp(y - y.mean())/(1 + np.exp(y - y.mean()))
-            y = np.random.binomial(1, p, size=len(y)).astype(float)
+            p = 1/(1 + np.exp(-y))
+            y = (p > np.median(p)).astype(float)
         else:
             raise ValueError(f'Unsupported y_type: {self.y_type}')
 
