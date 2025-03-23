@@ -45,7 +45,8 @@ class Simulation:
         self.logger.info(f"Number of iterations: {self.n_iter}")
         self.logger.info(f"VAE regularization (beta_vae): {self.params['beta_vae_list']}")
         self.logger.info(f"Batch sizes: {self.params['batch_list']}")
-        self.logger.info(f"Number of neurons: {self.params['n_neurons_list']}")
+        self.logger.info(f"Number of encoder neurons: {self.params.get('n_neurons_encoder', self.params['n_neurons_decoder_list'])}")
+        self.logger.info(f"Number of decoder neurons: {self.params['n_neurons_decoder_list']}")
         self.logger.info(f"Epochs: {self.params['epochs_list']}")
         self.logger.info(f"Patience values: {self.params['patience_list']}")
         self.logger.info("----------------------------------------------------")
@@ -69,17 +70,17 @@ class Simulation:
                             exp_data = simulator.generate_data()
                             for beta_vae in self.params['beta_vae_list']:
                                 for batch in self.params['batch_list']:
-                                    for n_neurons in self.params['n_neurons_list']:
+                                    for n_neurons_decoder in self.params['n_neurons_decoder_list']:
                                         for epochs in self.params['epochs_list']:
                                             for patience in self.params['patience_list']:
                                                 self.params['patience'] = patience
                                                 self.params['epochs'] = epochs
-                                                self.params['n_neurons'] = n_neurons
+                                                self.params['n_neurons_decoder'] = n_neurons_decoder
                                                 self.params['beta_vae'] = beta_vae
                                                 self.params['batch'] = batch
                                                 self.logger.info(f'beta_vae: {beta_vae}, '
                                                                 f'batch: {batch}, '
-                                                                f'n_neurons: {n_neurons}, '
+                                                                f'n_neurons_decoder: {n_neurons_decoder}, '
                                                                 f'epochs: {epochs}, '
                                                                 f'patience: {patience}')
                                                 self.exp_in = ExperimentInput(exp_data, n_train, self.n_test, self.pred_unknown_clusters, qs, self.d,
@@ -176,7 +177,7 @@ class Simulation:
             'time': self.exp_res.time,
             'n_params': self.exp_res.n_params,
             'encoder': '[' + ', '.join(map(str, self.exp_in.n_neurons_encoder)) + ']',
-            'decoder': '[' + ', '.join(map(str, self.exp_in.n_neurons)) + ']',
+            'decoder': '[' + ', '.join(map(str, self.exp_in.n_neurons_decoder)) + ']',
             'patience': self.exp_in.patience if self.exp_in.patience is not None else self.exp_in.epochs
         }
 

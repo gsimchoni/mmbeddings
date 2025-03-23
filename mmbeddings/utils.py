@@ -56,7 +56,7 @@ class ExpInput:
     Z_embed_dim_pct: float
     n_sig2bs: int
     verbose: bool
-    n_neurons: int
+    n_neurons_decoder: int
     n_neurons_encoder: int = field(default=None)
     dropout: float = 0.0
     activation: str = "relu"
@@ -72,7 +72,7 @@ class ExpInput:
     def __post_init__(self):
         """Handle defaults that depend on other fields."""
         if self.n_neurons_encoder is None:
-            self.n_neurons_encoder = self.n_neurons
+            self.n_neurons_encoder = self.n_neurons_decoder
         if self.epochs_post_training is None:
             self.epochs_post_training = self.epochs
         if self.patience_post_training is None:

@@ -58,7 +58,7 @@ class EmbeddingsDecoder(Layer):
         super().__init__(name=name, **kwargs)
         self.exp_in = exp_in
         self.input_dim = input_dim
-        self.nn = build_coder(self.input_dim, self.exp_in.n_neurons,
+        self.nn = build_coder(self.input_dim, self.exp_in.n_neurons_decoder,
                               self.exp_in.dropout, self.exp_in.activation)
         self.concat = Concatenate()
         self.dense_output = Dense(1, activation=last_layer_activation)

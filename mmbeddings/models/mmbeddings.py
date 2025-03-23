@@ -61,7 +61,7 @@ class MmbeddingsDecoder(Model):
         self.input_dim = input_dim
         self.qs = self.exp_in.qs
         self.n_RE_inputs = len(self.exp_in.qs)
-        self.n_neurons = self.exp_in.n_neurons
+        self.n_neurons = self.exp_in.n_neurons_decoder
         self.dropout = self.exp_in.dropout
         self.nn = build_coder(input_dim, self.n_neurons, self.dropout, self.exp_in.activation)
         # self.nn = build_coder(input_dim, [100, 50, 25, 12], [0.25, 0.25, 0.25], self.exp_in.activation)
@@ -95,7 +95,7 @@ class MmbeddingsCFDecoder(Model):
         self.input_dim = input_dim
         self.qs = self.exp_in.qs
         self.n_RE_inputs = len(self.exp_in.qs)
-        self.n_neurons = self.exp_in.n_neurons
+        self.n_neurons = self.exp_in.n_neurons_decoder
         self.dropout = self.exp_in.dropout
         self.nn = build_coder(input_dim, self.n_neurons, self.dropout, self.exp_in.activation)
         # self.nn = build_coder(input_dim, [100, 50, 25, 12], [0.25, 0.25, 0.25], self.exp_in.activation)

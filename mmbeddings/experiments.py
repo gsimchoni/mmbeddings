@@ -339,7 +339,7 @@ class LMMNN(Experiment):
         y_pred, sigmas, rhos, n_epochs, nll_tr, nll_te, y_pred_no_re, n_params = run_lmmnn(
             self.X_train, self.X_test, self.y_train, self.y_test, self.exp_in.qs,
             q_spatial, self.exp_in.x_cols, self.exp_in.batch, self.exp_in.epochs,
-            self.exp_in.patience, self.exp_in.n_neurons, self.exp_in.dropout,
+            self.exp_in.patience, self.exp_in.n_neurons_decoder, self.exp_in.dropout,
             self.exp_in.activation, mode, y_type, self.n_sig2bs, n_sig2bs_spatial,
             est_cors, dist_matrix, spatial_embed_neurons, self.exp_in.verbose,
             Z_non_linear, self.exp_in.Z_embed_dim_pct, self.exp_in.log_params,

@@ -22,9 +22,10 @@ n_fixed_effects: 10
 spatial_embed_neurons:
 sig2b_spatial_list: []
 q_spatial_list: []
-n_neurons:
-  - 100
-  - 100
+n_neurons_decoder_list:
+  -
+    - 100
+    - 100
 dropout:
 activation: 'relu'
 X_non_linear: True

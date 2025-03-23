@@ -36,7 +36,7 @@ class BaseModel(Model):
         return metrics, sigmas, nll_tr, nll_te, n_epochs, n_params
     
     def add_layers_sequential(self, input_dim):
-        n_neurons = self.exp_in.n_neurons
+        n_neurons = self.exp_in.n_neurons_decoder
         dropout = self.exp_in.dropout
         activation = self.exp_in.activation
         if len(n_neurons) > 0:

@@ -38,7 +38,7 @@ class NCFModel(BaseModel):
         self.item_bias = Embedding(self.num_items, 1)
         self.dot_layer = Dot(axes=2)
         self.concat = Concatenate()
-        self.nn = build_coder(input_dim + 1, self.exp_in.n_neurons, self.exp_in.dropout, self.exp_in.activation)
+        self.nn = build_coder(input_dim + 1, self.exp_in.n_neurons_decoder, self.exp_in.dropout, self.exp_in.activation)
         self.dense_output = Dense(1, activation=self.last_layer_activation, name="output")
         
     def call(self, inputs):
