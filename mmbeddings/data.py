@@ -112,7 +112,7 @@ class DataSimulator:
 
         # Define a non-linear function on the input features
         # non_linear_term = non_linear_fn10(X, embeddings[0]) + non_linear_fn10(X, embeddings[1])
-        non_linear_term = non_linear_fn10(X, embeddings[0])
+        non_linear_term = non_linear_fn10(X, embeddings)
         # non_linear_term = growth_model(input_features)
         # non_linear_term = generate_collaborative_data(X, embeddings, activation='identity')  # uncomment this line to generate collaborative data
 
@@ -274,40 +274,40 @@ def growth_model(input_features):
     return non_linear_term
 
 # Define the function f with random effects
-def non_linear_fn10(X, B):
+def non_linear_fn10(X, B_list):
     """
     Compute the nonlinear function f with fixed and random effects using vectorized operations.
 
     Parameters:
     - X: n x 10 fixed effects matrix (numpy array)
-    - B: n x 10 random effects matrix (numpy array)
-    - beta_mean: length-10 mean vector for beta (fixed effects)
-    - beta_sd: length-10 standard deviation vector for beta (random effects)
+    - B_list: list of n x 10 random effects matrix (numpy array)
 
     Returns:
     - response: n x 1 response vector (numpy array)
     """
     n, p = X.shape
     assert p == 10, "X must have 10 columns for the fixed effects."
-    assert B.shape == (n, 10), "B must be n x 10 for the random effects."
+    non_linear_term = 0.0
+    for B in B_list:
+        assert B.shape == (n, 10), "B must be n x 10 for the random effects."
 
-    # Sample a random beta vector (fixed effects)
-    beta = np.array([1.0] * 10)
+        # Sample a random beta vector (fixed effects)
+        beta = np.array([1.0] * 10)
 
-    # Add random effects to beta
-    beta_with_b = beta + B
+        # Add random effects to beta
+        beta_with_b = beta + B
 
-    # Compute the nonlinear function using vectorized operations
-    term1 = 0.1 * np.exp(-beta_with_b[:, 0] * X[:, 0]**2)
-    term2 = np.clip((beta_with_b[:, 1] * X[:, 1]) / (1 + beta_with_b[:, 2] * X[:, 2]**2), -5.0, 5.0)
-    term3 = np.sin(beta_with_b[:, 3] * X[:, 3])
-    term4 = beta_with_b[:, 4] * X[:, 4]
-    term5 = (beta_with_b[:, 5] * X[:, 5]) / (1 + np.exp(-beta_with_b[:, 6] * X[:, 6]))
-    term6 = np.arctan(beta_with_b[:, 7] * X[:, 7])
-    term7 = beta_with_b[:, 8] * np.cos(X[:, 8])
-    term8 = beta_with_b[:, 9] * np.log(1 + X[:, 9]**2)
+        # Compute the nonlinear function using vectorized operations
+        term1 = 0.1 * np.exp(-beta_with_b[:, 0] * X[:, 0]**2)
+        term2 = np.clip((beta_with_b[:, 1] * X[:, 1]) / (1 + beta_with_b[:, 2] * X[:, 2]**2), -5.0, 5.0)
+        term3 = np.sin(beta_with_b[:, 3] * X[:, 3])
+        term4 = beta_with_b[:, 4] * X[:, 4]
+        term5 = (beta_with_b[:, 5] * X[:, 5]) / (1 + np.exp(-beta_with_b[:, 6] * X[:, 6]))
+        term6 = np.arctan(beta_with_b[:, 7] * X[:, 7])
+        term7 = beta_with_b[:, 8] * np.cos(X[:, 8])
+        term8 = beta_with_b[:, 9] * np.log(1 + X[:, 9]**2)
 
-    non_linear_term = term1 + term2 + term3 + term4 + term5 + term6 + term7 + term8
+        non_linear_term += term1 + term2 + term3 + term4 + term5 + term6 + term7 + term8
 
     return non_linear_term.reshape(-1, 1)
 
