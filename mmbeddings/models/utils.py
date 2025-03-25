@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Layer
+from tensorflow.keras.layers import Layer, Add, Dense, LayerNormalization, MultiHeadAttention
 import tensorflow.keras.backend as K
 
 def build_coder(input_dim, n_neurons, dropout, activation):
@@ -59,3 +59,32 @@ def compute_category_embedding(cat_feature, embeddings, num_tokens, return_batch
         avg_embeddings = tf.gather(avg_embeddings, cat_feature_flat)
     
     return avg_embeddings
+
+class TransformerBlock(Layer):
+    def __init__(self, head_size, num_heads, ff_dim, dropout=0.1, **kwargs):
+        """
+        Transformer encoder block as in the Keras TabTransformer example.
+        """
+        super().__init__(**kwargs)
+        self.mha = MultiHeadAttention(key_dim=head_size, num_heads=num_heads, dropout=dropout)
+        self.add1 = Add()
+        self.norm1 = LayerNormalization(epsilon=1e-6)
+        self.ffn = tf.keras.Sequential([
+            Dense(ff_dim, activation="relu"),
+            Dense(head_size)
+        ])
+        self.add2 = Add()
+        self.norm2 = LayerNormalization(epsilon=1e-6)
+    
+    def call(self, inputs, training=False):
+        # Multi-head attention on inputs.
+        attn_output = self.mha(inputs, inputs, training=training)
+        # Residual connection + normalization.
+        x = self.add1([inputs, attn_output])
+        x = self.norm1(x)
+        # Feed-forward network.
+        ffn_output = self.ffn(x)
+        # Residual connection + normalization.
+        x = self.add2([x, ffn_output])
+        x = self.norm2(x)
+        return x

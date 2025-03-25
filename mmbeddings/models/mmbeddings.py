@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from tensorflow.keras.layers import Concatenate, Dense, Dot, Layer
+from tensorflow.keras.layers import Concatenate, Dense, Dot, Layer, LayerNormalization, Embedding, Flatten
 from tensorflow.keras.models import Model
 from packaging import version
 import tensorflow as tf
@@ -9,7 +9,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers.experimental.preprocessing import CategoryEncoding
 from tensorflow.keras.losses import MeanSquaredError, BinaryCrossentropy
 
-from mmbeddings.models.utils import Sampling, build_coder, compute_category_embedding
+from mmbeddings.models.utils import Sampling, build_coder, compute_category_embedding, TransformerBlock
 from mmbeddings.utils import evaluate_predictions
 
 
@@ -124,6 +124,71 @@ class MmbeddingsCFDecoder(Model):
         return output.numpy()
 
 
+class MmbeddingsTTDecoder(Model):
+    """"""
+
+    def __init__(self, exp_in, input_dim, last_layer_activation, name="decoder", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.exp_in = exp_in
+        self.last_layer_activation = last_layer_activation
+        self.d = exp_in.d
+        self.qs = exp_in.qs
+        self.n_neurons = self.exp_in.n_neurons_decoder
+        self.dropout = self.exp_in.dropout
+        self.cont_norm = LayerNormalization(epsilon=1e-6, name="cont_norm")
+        self.num_categorical = len(exp_in.qs)
+        self.num_continuous = len(exp_in.x_cols)
+        self.column_embedding = Embedding(input_dim=self.num_categorical, output_dim=self.d, name="column_embedding")
+        self.num_transformer_blocks = getattr(exp_in, "num_transformer_blocks", 2)
+        self.num_heads = getattr(exp_in, "num_heads", 4)
+        self.ff_dim = getattr(exp_in, "ff_dim", 64)
+        self.dropout_rate = getattr(exp_in, "dropout_rate", 0.1)
+        self.transformer_blocks = [
+            TransformerBlock(head_size=self.d, num_heads=self.num_heads, ff_dim=self.ff_dim,
+                             dropout=self.dropout_rate, name=f"trans_block_{i}")
+            for i in range(self.num_transformer_blocks)
+        ]
+        self.cat_flatten = Flatten(name="cat_flatten")
+        self.nn = build_coder(input_dim, self.n_neurons, self.dropout, self.exp_in.activation)
+        self.dense_output = Dense(1, activation=self.last_layer_activation, name="output")
+
+    def call(self, X_input, Z_inputs, mmbeddings_list, training=False):
+        ZB_list = []
+        for i in range(self.num_categorical):
+            ZB = compute_category_embedding(Z_inputs[i], mmbeddings_list[i], self.qs[i])
+            ZB_list.append(ZB)
+        X_cont = self.cont_norm(X_input)
+        cat_embeds = tf.stack(ZB_list, axis=1)
+        col_indices = tf.range(start=0, limit=self.num_categorical, delta=1)  # shape: (num_categorical,)
+        col_embeds = self.column_embedding(col_indices)  # shape: (num_categorical, d)
+        cat_embeds = cat_embeds + col_embeds  # broadcasting along the batch dimension
+        x_cat = cat_embeds
+        for block in self.transformer_blocks:
+            x_cat = block(x_cat, training=training)
+        cat_out = self.cat_flatten(x_cat)  # shape: (batch, num_categorical * d)
+        combined = tf.concat([X_cont, cat_out], axis=-1)
+        out_hidden = self.nn(combined)
+        output = self.dense_output(out_hidden)
+        return output
+    
+    def predict_with_custom_B(self, X_input_np, embeddings):
+        X_input = tf.convert_to_tensor(X_input_np, dtype=tf.float32)
+        cat_embeds = tf.convert_to_tensor(embeddings, dtype=tf.float32)
+        cat_embeds = tf.stack(cat_embeds, axis=1)
+        X_cont = self.cont_norm(X_input, training=False)
+        col_indices = tf.range(start=0, limit=self.num_categorical, delta=1)  # shape: (num_categorical,)
+        col_embeds = self.column_embedding(col_indices)  # shape: (num_categorical, d).
+        cat_embeds = cat_embeds + col_embeds  # shape: (batch, num_categorical, d)
+        x_cat = cat_embeds
+        for block in self.transformer_blocks:
+            x_cat = block(x_cat, training=False)
+        cat_out = self.cat_flatten(x_cat)  # shape: (batch, num_categorical * d)
+        combined = tf.concat([X_cont, cat_out], axis=-1)
+        out_hidden = self.nn(combined, training=False)
+        output = self.dense_output(out_hidden, training=False)
+        return output.numpy()
+
+
 class MmbeddingsDecoderGrowthModel(Layer):
     """"""
 
@@ -172,7 +237,7 @@ class MmbeddingsDecoderGrowthModel(Layer):
 
 
 class MmbeddingsVAE(Model):
-    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model=False, cf=False):
+    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model=False, cf=False, tt=False):
         """
         MLP-based VAE model for mmbeddings.
         """
@@ -189,6 +254,8 @@ class MmbeddingsVAE(Model):
         elif cf:
             decoder_class = MmbeddingsCFDecoder
             decoder_input_dim = self.input_dim + 1
+        elif tt:
+            decoder_class = MmbeddingsTTDecoder
         else:
             decoder_class = MmbeddingsDecoder
         self.decoder = decoder_class(exp_in, decoder_input_dim, last_layer_activation)

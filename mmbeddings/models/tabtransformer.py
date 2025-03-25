@@ -1,38 +1,10 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Add, Dense, Flatten, Layer, LayerNormalization, MultiHeadAttention, Embedding
+from tensorflow.keras.layers import Dense, Flatten, LayerNormalization, Embedding
 
 from mmbeddings.models.base_model import BaseModel
+from mmbeddings.models.utils import build_coder, TransformerBlock
 
-class TransformerBlock(Layer):
-    def __init__(self, head_size, num_heads, ff_dim, dropout=0.1, **kwargs):
-        """
-        Transformer encoder block as in the Keras TabTransformer example.
-        """
-        super().__init__(**kwargs)
-        self.mha = MultiHeadAttention(key_dim=head_size, num_heads=num_heads, dropout=dropout)
-        self.add1 = Add()
-        self.norm1 = LayerNormalization(epsilon=1e-6)
-        self.ffn = tf.keras.Sequential([
-            Dense(ff_dim, activation="relu"),
-            Dense(head_size)
-        ])
-        self.add2 = Add()
-        self.norm2 = LayerNormalization(epsilon=1e-6)
-    
-    def call(self, inputs, training=False):
-        # Multi-head attention on inputs.
-        attn_output = self.mha(inputs, inputs, training=training)
-        # Residual connection + normalization.
-        x = self.add1([inputs, attn_output])
-        x = self.norm1(x)
-        # Feed-forward network.
-        ffn_output = self.ffn(x)
-        # Residual connection + normalization.
-        x = self.add2([x, ffn_output])
-        x = self.norm2(x)
-        return x
 
-# --- TabTransformer Model Definition Following Keras Example ---
 class TabTransformerModel(BaseModel):
     def __init__(self, exp_in, input_dim, last_layer_activation, **kwargs):
         """
@@ -82,8 +54,9 @@ class TabTransformerModel(BaseModel):
         self.cat_flatten = Flatten(name="cat_flatten")
         
         # Combine the two branches.
-        self.combined_dense = Dense(64, activation="relu", name="combined_dense")
-        self.out_dense = Dense(1, activation=self.last_layer_activation, name="output")
+        self.nn = build_coder(input_dim + self.num_categorical * self.d,
+                              self.exp_in.n_neurons_decoder, self.exp_in.dropout, self.exp_in.activation)
+        self.dense_output = Dense(1, activation=self.last_layer_activation, name="output")
         
     def call(self, inputs, training=False):
         """
@@ -124,7 +97,7 @@ class TabTransformerModel(BaseModel):
         
         # Concatenate the continuous features with the flattened categorical features.
         combined = tf.concat([X_cont, cat_out], axis=-1)
-        x = self.combined_dense(combined)
-        output = self.out_dense(x)
+        out_hidden = self.nn(combined)
+        output = self.dense_output(out_hidden)
         return output
     
