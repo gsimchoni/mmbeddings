@@ -72,7 +72,7 @@ class Simulation:
                                 for batch in self.params['batch_list']:
                                     for n_neurons_decoder in self.params['n_neurons_decoder_list']:
                                         for epochs in self.params['epochs_list']:
-                                            for patience in self.params['patience_list']:
+                                            for patience in self.params['patience_list'] if self.params['patience_list'] is not None else [None]:
                                                 self.params['patience'] = patience
                                                 self.params['epochs'] = epochs
                                                 self.params['n_neurons_decoder'] = n_neurons_decoder
