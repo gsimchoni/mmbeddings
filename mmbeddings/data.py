@@ -28,7 +28,7 @@ class DataSimulator:
         self.params = params
         self.p = params.get('n_fixed_effects', 10)
         self.sig2bs_identical = params.get('sig2bs_identical', False)
-        self.d = params.get('d', 10)
+        self.d = params.get('d_true', params.get('d', 10))
         self.n_per_cat = params.get('n_per_cat', 30)
         self.y_type = params.get('y_type', 'continuous')
 
