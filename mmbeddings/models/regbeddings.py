@@ -52,7 +52,7 @@ class RegbeddingsEncoder(Model):
 
 
 class RegbeddingsMLP(Model):
-    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model=False, cf=False):
+    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model=False, cf=False, tt=False):
         """
         MLP-based regularized embeddings model (Richman, 2024).
         """

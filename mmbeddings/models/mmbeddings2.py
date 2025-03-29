@@ -152,7 +152,7 @@ class MmbeddingsDecoderGrowthModel(Layer):
 
 
 class MmbeddingsVAE2(Model):
-    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model=False, cf=False):
+    def __init__(self, exp_in, input_dim, last_layer_activation, growth_model=False, cf=False, tt=False):
         """
         MLP-based VAE model for mmbeddings.
         """
