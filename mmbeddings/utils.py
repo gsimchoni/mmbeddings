@@ -130,14 +130,20 @@ def adjust_accuracy(y_true, y_pred):
 
 def evaluate_predictions(y_type, y_test, y_pred):
         if y_type == 'continuous':
-            mse = mean_squared_error(y_test, y_pred)
-            mae = mean_absolute_error(y_test, y_pred)
-            r2 = r2_score(y_test, y_pred)
+            if any(np.isnan(y_pred)):
+                mse, mae, r2 = np.nan, np.nan, np.nan
+            else:
+                mse = mean_squared_error(y_test, y_pred)
+                mae = mean_absolute_error(y_test, y_pred)
+                r2 = r2_score(y_test, y_pred)
             metrics = [mse, mae, r2]
         elif y_type == 'binary':
-            auc = adjusted_auc(y_test, y_pred)
-            logloss = adjusted_log_loss(y_test, y_pred)
-            accuracy = adjust_accuracy(y_test, y_pred)
+            if any(np.isnan(y_pred)):
+                auc, logloss, accuracy = np.nan, np.nan, np.nan
+            else:
+                auc = adjusted_auc(y_test, y_pred)
+                logloss = adjusted_log_loss(y_test, y_pred)
+                accuracy = adjust_accuracy(y_test, y_pred)
             metrics = [auc, logloss, accuracy]
         else:
             raise ValueError(f'Unsupported y_type: {y_type}')
