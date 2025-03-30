@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.metrics import roc_auc_score
 import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.layers import Concatenate, Dense, Embedding, Layer, Reshape, Hashing
+from tensorflow.keras.layers import Concatenate, Dense, Dot, Embedding, Layer, Reshape, Hashing
 from tensorflow.keras.regularizers import L2
 
 from mmbeddings.models.base_model import BaseModel
@@ -101,6 +101,32 @@ class EmbeddingsDecoderGrowthModel(Layer):
         return output
 
 
+class UnifiedNCFDecoder(Layer):
+    """"""
+
+    def __init__(self, exp_in, input_dim, last_layer_activation, name="decoder", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.exp_in = exp_in
+        self.input_dim = input_dim
+        self.qs = self.exp_in.qs
+        self.n_RE_inputs = len(self.exp_in.qs)
+        self.n_neurons = self.exp_in.n_neurons_decoder
+        self.dropout = self.exp_in.dropout
+        self.nn = build_coder(input_dim, self.n_neurons, self.dropout, self.exp_in.activation)
+        self.dot_layer = Dot(axes=1)
+        self.concat = Concatenate()
+        self.dense_output = Dense(1, activation=last_layer_activation)
+
+    def call(self, X_input, embeds):
+        user_vector = embeds[0]
+        item_vector = embeds[1]
+        dot_user_item = self.dot_layer([user_vector, item_vector])  # Shape: (batch_size, 1)
+        features_embedding_concat = self.concat([X_input, dot_user_item])
+        out_hidden = self.nn(features_embedding_concat)
+        output = self.dense_output(out_hidden)
+        return output
+
+
 class EmbeddingsMLP(BaseModel):
     def __init__(self, exp_in, input_dim, last_layer_activation, growth_model, l2reg_lambda, **kwargs):
         """
@@ -165,6 +191,32 @@ class UnifiedEmbeddingsMLP(BaseModel):
         self.encoder = UnifiedEmbeddingsEncoder(single_q, self.exp_in.d)
         decoder_input_dim = self.input_dim + self.exp_in.d * len(self.exp_in.qs)
         self.decoder = EmbeddingsDecoder(self.exp_in, decoder_input_dim, last_layer_activation)
+            
+    def call(self, inputs):
+        """
+        Build the MLP model with embeddings.
+        """
+        X_input = inputs[0]
+        Z_inputs = inputs[1:]
+        embeds = self.encoder(Z_inputs)
+        output = self.decoder(X_input, embeds)
+        return output
+
+class UnifiedEmbeddingsNCF(BaseModel):
+    def __init__(self, exp_in, input_dim, last_layer_activation, **kwargs):
+        """
+        Multi-layer perceptron model with unified hash embeddings.
+        """
+        super(UnifiedEmbeddingsNCF, self).__init__(exp_in, **kwargs)
+        self.exp_in = exp_in
+        self.input_dim = input_dim
+        if len(self.exp_in.qs) == 1:
+            single_q = self.exp_in.qs[0]
+        else:
+            single_q = self.exp_in.ue_q
+        self.encoder = UnifiedEmbeddingsEncoder(single_q, self.exp_in.d)
+        decoder_input_dim = self.input_dim + 1
+        self.decoder = UnifiedNCFDecoder(self.exp_in, decoder_input_dim, last_layer_activation)
             
     def call(self, inputs):
         """
