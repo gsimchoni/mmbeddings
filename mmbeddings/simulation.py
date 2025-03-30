@@ -146,7 +146,7 @@ class Simulation:
             experiment = LMMNN(self.exp_in)
         elif exp_type == 'mmbeddings-v2':
             experiment = REbeddings(self.exp_in, REbeddings_type='mmbeddings-v2')
-        elif exp_type in ['tabnet', 'tabtransformer', 'hashing', 'ncf', 'unified', 'uencf']:
+        elif exp_type in ['tabnet', 'tabtransformer', 'hashing', 'ncf', 'unified', 'uencf', 'uetabtransformer']:
             experiment = TrainableEmbeddingExperiment(self.exp_in, exp_type)
         else:
             raise NotImplementedError(f'{exp_type} experiment not implemented.')

@@ -6,7 +6,7 @@ import seaborn as sns
 from sklearn.decomposition import PCA
 from mmbeddings.models.lmmnn.lmmnn import run_lmmnn
 from mmbeddings.models.mlp import MLP
-from mmbeddings.models.embeddings import EmbeddingsMLP, HashingMLP, UnifiedEmbeddingsMLP, UnifiedEmbeddingsNCF
+from mmbeddings.models.embeddings import EmbeddingsMLP, HashingMLP, UnifiedEmbeddingsMLP, UnifiedEmbeddingsNCF, UnifiedEmbeddingsTT
 from mmbeddings.models.mmbeddings import MmbeddingsDecoderPostTraining, MmbeddingsVAE
 from mmbeddings.models.mmbeddings2 import MmbeddingsVAE2
 from mmbeddings.models.regbeddings import RegbeddingsMLP
@@ -386,6 +386,8 @@ class TrainableEmbeddingExperiment(Experiment):
             return UnifiedEmbeddingsMLP
         elif net_type == 'uencf':
             return UnifiedEmbeddingsNCF
+        elif net_type == 'uetabtransformer':
+            return UnifiedEmbeddingsTT
         else:
             raise ValueError(f'Unsupported net_type: {net_type}')
     

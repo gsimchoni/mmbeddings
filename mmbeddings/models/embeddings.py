@@ -1,13 +1,10 @@
-import numpy as np
-from sklearn.metrics import roc_auc_score
 import tensorflow as tf
-from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.layers import Concatenate, Dense, Dot, Embedding, Layer, Reshape, Hashing
+from tensorflow.keras.layers import Concatenate, Dense, Dot, Embedding, Flatten, Layer, Reshape, Hashing, LayerNormalization
 from tensorflow.keras.regularizers import L2
 
 from mmbeddings.models.base_model import BaseModel
 from mmbeddings.models.unifiedembeddings import UnifiedEmbedding
-from mmbeddings.models.utils import build_coder
+from mmbeddings.models.utils import TransformerBlock, build_coder
 
 
 class EmbeddingsEncoder(Layer):
@@ -127,6 +124,50 @@ class UnifiedNCFDecoder(Layer):
         return output
 
 
+class UnifiedTTDecoder(Layer):
+    """"""
+
+    def __init__(self, exp_in, input_dim, last_layer_activation, name="decoder", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.exp_in = exp_in
+        self.last_layer_activation = last_layer_activation
+        self.d = exp_in.d
+        self.qs = exp_in.qs
+        self.n_neurons = self.exp_in.n_neurons_decoder
+        self.dropout = self.exp_in.dropout
+        self.cont_norm = LayerNormalization(epsilon=1e-6, name="cont_norm")
+        self.num_categorical = len(exp_in.qs)
+        self.num_continuous = len(exp_in.x_cols)
+        self.column_embedding = Embedding(input_dim=self.num_categorical, output_dim=self.d, name="column_embedding")
+        self.num_transformer_blocks = getattr(exp_in, "num_transformer_blocks", 2)
+        self.num_heads = getattr(exp_in, "num_heads", 4)
+        self.ff_dim = getattr(exp_in, "ff_dim", 64)
+        self.dropout_rate = getattr(exp_in, "dropout_rate", 0.1)
+        self.transformer_blocks = [
+            TransformerBlock(head_size=self.d, num_heads=self.num_heads, ff_dim=self.ff_dim,
+                             dropout=self.dropout_rate, name=f"trans_block_{i}")
+            for i in range(self.num_transformer_blocks)
+        ]
+        self.cat_flatten = Flatten(name="cat_flatten")
+        self.nn = build_coder(input_dim, self.n_neurons, self.dropout, self.exp_in.activation)
+        self.dense_output = Dense(1, activation=self.last_layer_activation, name="output")
+
+    def call(self, X_input, embeds, training=False):
+        X_cont = self.cont_norm(X_input)
+        cat_embeds = tf.stack(embeds, axis=1)
+        col_indices = tf.range(start=0, limit=self.num_categorical, delta=1)  # shape: (num_categorical,)
+        col_embeds = self.column_embedding(col_indices)  # shape: (num_categorical, d)
+        cat_embeds = cat_embeds + col_embeds  # broadcasting along the batch dimension
+        x_cat = cat_embeds
+        for block in self.transformer_blocks:
+            x_cat = block(x_cat, training=training)
+        cat_out = self.cat_flatten(x_cat)  # shape: (batch, num_categorical * d)
+        combined = tf.concat([X_cont, cat_out], axis=-1)
+        out_hidden = self.nn(combined)
+        output = self.dense_output(out_hidden)
+        return output
+
+
 class EmbeddingsMLP(BaseModel):
     def __init__(self, exp_in, input_dim, last_layer_activation, growth_model, l2reg_lambda, **kwargs):
         """
@@ -217,6 +258,33 @@ class UnifiedEmbeddingsNCF(BaseModel):
         self.encoder = UnifiedEmbeddingsEncoder(single_q, self.exp_in.d)
         decoder_input_dim = self.input_dim + 1
         self.decoder = UnifiedNCFDecoder(self.exp_in, decoder_input_dim, last_layer_activation)
+            
+    def call(self, inputs):
+        """
+        Build the MLP model with embeddings.
+        """
+        X_input = inputs[0]
+        Z_inputs = inputs[1:]
+        embeds = self.encoder(Z_inputs)
+        output = self.decoder(X_input, embeds)
+        return output
+
+
+class UnifiedEmbeddingsTT(BaseModel):
+    def __init__(self, exp_in, input_dim, last_layer_activation, **kwargs):
+        """
+        Multi-layer perceptron model with unified hash embeddings.
+        """
+        super(UnifiedEmbeddingsTT, self).__init__(exp_in, **kwargs)
+        self.exp_in = exp_in
+        self.input_dim = input_dim
+        if len(self.exp_in.qs) == 1:
+            single_q = self.exp_in.qs[0]
+        else:
+            single_q = self.exp_in.ue_q
+        self.encoder = UnifiedEmbeddingsEncoder(single_q, self.exp_in.d)
+        decoder_input_dim = self.input_dim + self.exp_in.d * len(self.exp_in.qs)
+        self.decoder = UnifiedTTDecoder(self.exp_in, decoder_input_dim, last_layer_activation)
             
     def call(self, inputs):
         """
