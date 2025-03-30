@@ -68,6 +68,7 @@ class ExpInput:
     mmbeddings_post_training: bool = True
     epochs_post_training: Optional[int] = None
     patience_post_training: Optional[int] = None
+    ue_q: int = 2**20
 
     def __post_init__(self):
         """Handle defaults that depend on other fields."""

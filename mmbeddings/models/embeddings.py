@@ -6,6 +6,7 @@ from tensorflow.keras.layers import Concatenate, Dense, Embedding, Layer, Reshap
 from tensorflow.keras.regularizers import L2
 
 from mmbeddings.models.base_model import BaseModel
+from mmbeddings.models.unifiedembeddings import UnifiedEmbedding
 from mmbeddings.models.utils import build_coder
 
 
@@ -49,6 +50,19 @@ class HashingEncoder(Layer):
         for i, hashing in enumerate(self.embeddings):
             hashs.append(hashing(inputs[i]))
         return hashs
+
+
+class UnifiedEmbeddingsEncoder(Layer):
+    def __init__(self, q, d, name="encoder", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.embeddings = UnifiedEmbedding(q, d, name='embed')
+        self.reshape = Reshape(target_shape=(d,))
+    
+    def call(self, inputs):
+        embeds = []
+        for i, input in enumerate(inputs):
+            embeds.append(self.reshape(self.embeddings(input, fnum=[i])))
+        return embeds
 
 
 class EmbeddingsDecoder(Layer):
@@ -123,6 +137,33 @@ class HashingMLP(BaseModel):
         self.input_dim = input_dim
         self.encoder = HashingEncoder(self.exp_in.qs, self.exp_in.hashing_bins)
         decoder_input_dim = self.input_dim + self.exp_in.hashing_bins * len(self.exp_in.qs)
+        self.decoder = EmbeddingsDecoder(self.exp_in, decoder_input_dim, last_layer_activation)
+            
+    def call(self, inputs):
+        """
+        Build the MLP model with embeddings.
+        """
+        X_input = inputs[0]
+        Z_inputs = inputs[1:]
+        embeds = self.encoder(Z_inputs)
+        output = self.decoder(X_input, embeds)
+        return output
+
+
+class UnifiedEmbeddingsMLP(BaseModel):
+    def __init__(self, exp_in, input_dim, last_layer_activation, **kwargs):
+        """
+        Multi-layer perceptron model with unified hash embeddings.
+        """
+        super(UnifiedEmbeddingsMLP, self).__init__(exp_in, **kwargs)
+        self.exp_in = exp_in
+        self.input_dim = input_dim
+        if len(self.exp_in.qs) == 1:
+            single_q = self.exp_in.qs[0]
+        else:
+            single_q = self.exp_in.ue_q  # Arbitrary large number for hashing
+        self.encoder = UnifiedEmbeddingsEncoder(single_q, self.exp_in.d)
+        decoder_input_dim = self.input_dim + self.exp_in.d * len(self.exp_in.qs)
         self.decoder = EmbeddingsDecoder(self.exp_in, decoder_input_dim, last_layer_activation)
             
     def call(self, inputs):

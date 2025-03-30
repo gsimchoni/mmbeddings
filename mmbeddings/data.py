@@ -198,7 +198,8 @@ class ExperimentInput:
             hashing_bins=self.params.get('hashing_bins', 2**10), log_params=self.params['log_params'],
             mmbeddings_post_training=self.params.get('mmbeddings_post_training', True),
             epochs_post_training=self.params.get('epochs_post_training', self.params['epochs']),
-            patience_post_training=self.params.get('patience_post_training', self.params['patience'])
+            patience_post_training=self.params.get('patience_post_training', self.params['patience']),
+            ue_q = self.params.get('ue_q', 2**20)
         )
         return exp
 
