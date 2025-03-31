@@ -11,16 +11,16 @@ loadfonts(device="win")
 increase_q <- read_csv("results/res_continuous_single_feature.csv")
 
 pQ <- increase_q %>%
-  filter(q0 > 100, !exp_type %in% c("hashing", "mean-encoding")) %>%
+  filter(q0 > 100, !exp_type %in% c("hashing", "mean-encoding", "tabtransformer")) %>%
   mutate(exp_type = case_when(
     exp_type == "embeddings" ~ "Embed.",
     exp_type == "ignore" ~ "Ignore",
     exp_type == "mmbeddings" ~ "MMbed.",
     exp_type == "embeddings-l2" ~ "EmbedL2",
     exp_type == "regbeddings" ~ "REbed.",
-    exp_type == "tabtransformer" ~ "TabTran."
+    exp_type == "unified" ~ "UEmbed."
   ),
-  exp_type = fct_relevel(exp_type, c("Ignore", "Embed.", "EmbedL2", "REbed.", "TabTran.", "MMbed."))) %>%
+  exp_type = fct_relevel(exp_type, c("Ignore", "Embed.", "EmbedL2", "REbed.", "UEmbed.", "MMbed."))) %>%
   mutate(time_per_epoch = time / n_epochs) %>%
   group_by(q0, exp_type) %>%
   summarise(time_per_epoch = mean(time_per_epoch)) %>%
