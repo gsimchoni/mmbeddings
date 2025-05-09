@@ -122,9 +122,34 @@ plot_data <- plot_data %>%
 # Shared axis limits
 axis_lim <- range(c(plot_data$True, plot_data$Pred))
 
+# Compute correlation stats for annotation
+cor_stats <- map_dfr(names(best_matches), function(col_true) {
+  col_pred <- best_matches[[col_true]]
+  test <- cor.test(b_true[[col_true]], b_pred[[col_pred]])
+  r_val <- sprintf("%.2f", test$estimate)
+  p_val <- if (test$p.value < 0.01) {
+    "p < 0.01"
+  } else {
+    paste0("p = ", floor(test$p.value * 100) / 100)
+  }
+  tibble(
+    Component = col_true,
+    label = paste0("r = ", r_val, " (", p_val, ")")
+  )
+})
+
+# Match facet labels
+cor_stats <- cor_stats %>%
+  mutate(Component = factor(Component, levels = sprintf("b%02d", 1:10)),
+         Component = fct_relabel(Component, ~ str_replace(., "b", "b[")),
+         Component = fct_relabel(Component, ~ paste0(., "]")))
+
+
 # Plot
 p <- ggplot(plot_data, aes(x = True, y = Pred)) +
   geom_point(alpha = 0.6) +
+  geom_text(data = cor_stats, aes(x = -Inf, y = Inf, label = label),
+            hjust = -0.02, vjust = 1.2, size = 3.1) +
   facet_wrap(~ Component, nrow = 2, labeller = label_parsed) +
   coord_fixed(xlim = axis_lim) +
   theme_bw() +
