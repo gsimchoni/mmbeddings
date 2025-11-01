@@ -78,9 +78,13 @@ def normalized_rmse(true_embed_list, pred_embed_list, sample_size=10000):
 def auc_embeddings(pred_embed_list, y_embed):
     X = np.concatenate(pred_embed_list)
     model = LogisticRegression(solver='lbfgs', max_iter=1000)
-    model.fit(X, y_embed)
-    y_pred_prob = model.predict_proba(X)[:, 1]
-    auc = adjusted_auc(y_embed, y_pred_prob)
+    try:
+        model.fit(X, y_embed)
+        y_pred_prob = model.predict_proba(X)[:, 1]
+        auc = adjusted_auc(y_embed, y_pred_prob)
+    except ValueError:
+        # If the model fails to fit, return NaN or some other indicator of failure.
+        return np.nan
     return auc
 
 def calculate_embedding_metrics(true_embed_list, pred_embed_list, y_embed):

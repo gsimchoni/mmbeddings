@@ -53,12 +53,53 @@ def compute_category_embedding(cat_feature, embeddings, num_tokens, return_batch
     
     # Compute the average embedding for each category.
     avg_embeddings = tf.math.divide_no_nan(summed_embeddings, tf.expand_dims(counts, axis=-1))
+
+    # Apply shrinkage factor: n_j / (n_j + 1)
+    shrinkage = tf.expand_dims(counts / (counts + 1.0), axis=-1)  # shape (num_tokens, 1)
+    avg_embeddings = avg_embeddings * shrinkage
     
     # Now, for each observation, look up the average embedding for its category.
     if return_batch:
         avg_embeddings = tf.gather(avg_embeddings, cat_feature_flat)
     
     return avg_embeddings
+
+def compute_category_embedding_bayesian(cat_feature, mean_embeddings, log_var_embeddings, num_tokens, return_batch=True):
+    """
+    Bayesian aggregation of posterior embeddings with zero-count handling.
+    """
+    cat_feature_flat = tf.reshape(cat_feature, [-1])
+
+    # Convert log variances to variances and compute precisions
+    var_embeddings = tf.exp(log_var_embeddings)
+    precision_embeddings = 1.0 / var_embeddings  # (B, E)
+
+    # Sum precisions and weighted means per category
+    summed_precision = tf.math.unsorted_segment_sum(precision_embeddings, cat_feature_flat, num_segments=num_tokens)
+    weighted_sum_means = tf.math.unsorted_segment_sum(mean_embeddings * precision_embeddings, cat_feature_flat, num_segments=num_tokens)
+
+    # Identify zero-count categories to avoid division by zero
+    zero_precision_mask = tf.equal(summed_precision, 0.0)
+
+    # Replace zero precisions with ones (temporary fix to avoid division by zero)
+    safe_summed_precision = tf.where(zero_precision_mask, tf.ones_like(summed_precision), summed_precision)
+
+    # Compute combined variance and mean safely
+    combined_var = 1.0 / safe_summed_precision
+    combined_mean = combined_var * weighted_sum_means
+
+    # Restore safe defaults for zero-count categories (mean=0, var=1 or prior variance)
+    combined_var = tf.where(zero_precision_mask, tf.ones_like(combined_var), combined_var)
+    combined_mean = tf.where(zero_precision_mask, tf.zeros_like(combined_mean), combined_mean)
+
+    # Convert combined variance back to log variance
+    combined_log_var = tf.math.log(combined_var + 1e-8)
+
+    if return_batch:
+        combined_mean = tf.gather(combined_mean, cat_feature_flat)
+        combined_log_var = tf.gather(combined_log_var, cat_feature_flat)
+
+    return combined_mean, combined_log_var
 
 class TransformerBlock(Layer):
     def __init__(self, head_size, num_heads, ff_dim, dropout=0.1, **kwargs):

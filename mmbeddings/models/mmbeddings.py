@@ -9,7 +9,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers.experimental.preprocessing import CategoryEncoding
 from tensorflow.keras.losses import MeanSquaredError, BinaryCrossentropy
 
-from mmbeddings.models.utils import Sampling, build_coder, compute_category_embedding, TransformerBlock
+from mmbeddings.models.utils import Sampling, build_coder, compute_category_embedding, TransformerBlock, compute_category_embedding_bayesian
 from mmbeddings.utils import evaluate_predictions
 
 
@@ -261,6 +261,7 @@ class MmbeddingsVAE(Model):
         self.decoder = decoder_class(exp_in, decoder_input_dim, last_layer_activation)
         self.re_log_sig2b_prior = tf.constant(np.log(self.exp_in.re_sig2b_prior, dtype=np.float32))
         self.beta = self.exp_in.beta_vae
+        # self.c = [tf.Variable(initial_value=np.ones((q, 1)), dtype=tf.float32, trainable=True, name='c') for q in self.qs]
         self.callbacks = [EarlyStopping(
             monitor='val_loss', patience=self.exp_in.epochs if self.exp_in.patience is None else self.exp_in.patience)]
         
@@ -279,8 +280,9 @@ class MmbeddingsVAE(Model):
 
     def add_loss_and_metrics(self, y_input, y_pred, Z_inputs, re_codings_mean_list, re_codings_log_var_list):
         for i in range(self.n_RE_inputs):
-            re_codings_mean = compute_category_embedding(Z_inputs[i], re_codings_mean_list[i], self.qs[i], return_batch=False)
-            re_codings_log_var = compute_category_embedding(Z_inputs[i], re_codings_log_var_list[i], self.qs[i], return_batch=False)
+            re_codings_mean = compute_category_embedding(Z_inputs[i], re_codings_mean_list[i], self.qs[i], return_batch=False) #* self.c[i]
+            re_codings_log_var = compute_category_embedding(Z_inputs[i], re_codings_log_var_list[i], self.qs[i], return_batch=False) #* self.c[i]
+            # re_codings_mean, re_codings_log_var = compute_category_embedding_bayesian(Z_inputs[i], re_codings_mean_list[i], re_codings_log_var_list[i], self.qs[i], return_batch=False)
             # re_codings_log_var = tf.math.divide_no_nan(K.dot(K.transpose(Z0), K.exp(re_codings_log_var)), K.reshape(K.sum(Z0, axis=0)**2, (self.qs[i], 1)))
             # re_codings_log_var = K.log(tf.where(tf.equal(re_codings_log_var, 0), tf.ones_like(re_codings_log_var), re_codings_log_var))
             re_kl_loss_i = -0.5 * K.sum(
@@ -324,9 +326,19 @@ class MmbeddingsVAE(Model):
         for i in range(self.n_RE_inputs):
             B_df = pd.DataFrame(mmbeddings_list[i])
             B_df['z'] = Z_train[i].values
-            B_df_grouped = B_df.groupby('z')[B_df.columns[:self.d]].mean()
-            B_df_grouped = B_df_grouped.reindex(range(self.qs[i]), fill_value=0)
-            B_df_list.append(B_df_grouped.values)
+
+            # Compute group means and counts
+            group_means = B_df.groupby('z')[B_df.columns[:self.d]].mean()
+            group_counts = B_df.groupby('z').size()
+
+            # Compute shrinkage factor: n_j / (n_j + 1)
+            shrinkage = group_counts / (group_counts + 1.0)
+            shrinkage = shrinkage.to_frame('shrink')  # make it a DataFrame to merge
+            group_means = group_means.multiply(shrinkage['shrink'], axis=0)
+
+            # Reindex to full category range
+            group_means = group_means.reindex(range(self.qs[i]), fill_value=0)
+            B_df_list.append(group_means.values)
         return B_df_list
     
     def predict_model(self, X_test, Z_test, B_hat_list):
